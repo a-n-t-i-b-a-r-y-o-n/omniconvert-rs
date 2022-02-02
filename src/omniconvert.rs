@@ -10,11 +10,6 @@ enum CryptMode {
     Output,
 }
 
-enum ARMAXVerifierMode {
-    Manual,
-    Auto,
-}
-
 // Game regions
 enum Region {
     USA,
@@ -42,7 +37,7 @@ struct State {
     // Parser options
     parser:     ParserType,
     // ARMAX Verifier mode
-    verifier:   ARMAXVerifierMode,
+    verifier:   armax::VerifierMode,
     // Game region
     region:     Region,
 }
@@ -65,7 +60,7 @@ impl State {
                 code: formats[0].clone(),
             },
             parser: ParserType::Simple,
-            verifier: ARMAXVerifierMode::Auto,
+            verifier: armax::VerifierMode::Auto,
             region: Region::USA
         }
     }
@@ -308,7 +303,7 @@ fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
             let raw_chars = token.string.replace("-", "");
 
             // Attempt to decode the ARMAX string to an address/value pair of octets
-            if let Some(octets) = armax::alpha_to_octets(vec!(&raw_chars)) {
+            if let Some(octets) = armax::decrypt::alpha_to_octets(vec!(&raw_chars)) {
                 // Add the octets to our code list
                 for octet in octets {
                     cheat.codes.push(octet.0);
@@ -343,15 +338,15 @@ fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
     output
 }
 
-pub fn decrypt_and_translate(state: &State, game: &Game) {
+fn decrypt_and_translate(state: &State, game: &Game) {
     // TODO: Make an ARMAX disc hash if we're using ARMAX output w/ auto verifier
-    if state.outcrypt.code.device == CodeDevice::ARMAX && state.verifier == ARMAXVerifierMode::Auto {
+    if state.outcrypt.code.device == CodeDevice::ARMAX && state.verifier == armax::VerifierMode::Auto {
         panic!("[!] ARMAX disc hashes not implemented yet");
     }
 
     // TODO: Reset CB devices for input mode
 
-    for cheat in game.cheats {
+    for cheat in &game.cheats {
         // Decrypt the code
         // TODO: Left off here
     }

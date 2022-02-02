@@ -8,6 +8,7 @@ pub struct Cheat {
     pub state:      CheatStates,
 }
 
+#[derive(Clone, PartialEq)]
 pub enum CheatStates {
     Unverified,
     Parsed,

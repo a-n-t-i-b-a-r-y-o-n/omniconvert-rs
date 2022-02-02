@@ -1,12 +1,3 @@
-use std::iter::{Enumerate, FilterMap};
-use std::slice::Iter;
-
-// Attempt to recognize if this string is an ARMAX code or not
-pub fn is_armax_code(input: &str) -> bool {
-    input.chars().all(|c| { c.is_alphanumeric() || c == '-' }) &&
-        input.chars().nth(4) == Some('-') && input.chars().nth(9) == Some('-')
-}
-
 // TODO: Translate alpha_to_octets() from alphatobin() less literally
 // Decode ARMAX lines into pairs of address/value octets
 pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
