@@ -37,7 +37,9 @@ struct State {
     // Parser options
     parser:     ParserType,
     // ARMAX Verifier mode
-    verifier:   armax::VerifierMode,
+    armax_verifier:   armax::VerifierMode,
+    // ARMAX Seeds
+    armax_seeds: Vec<u32>,
     // Game region
     region:     Region,
 }
@@ -60,7 +62,8 @@ impl State {
                 code: formats[0].clone(),
             },
             parser: ParserType::Simple,
-            verifier: armax::VerifierMode::Auto,
+            armax_verifier: armax::VerifierMode::Auto,
+            armax_seeds: armax::seeds::gen_seeds(),
             region: Region::USA
         }
     }
@@ -246,10 +249,10 @@ fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
 
             // If current token is address, next token must be value.
             // Take next token as value for current address token.
-            if let Some(subsequent) = tokens.next() {
+            if let Some(next_token) = tokens.next() {
                 // Attempt to parse the address/value octets
                 if let (Ok(address), Ok(value)) =
-                (hex::decode(&token.string), hex::decode(&subsequent.string))
+                (hex::decode(&token.string), hex::decode(&next_token.string))
                 {
                     // Double-check our length
                     if address.len() < 4 || value.len() < 4 {
@@ -278,7 +281,7 @@ fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
                 }
 
                 // If we hit the end of a text/token block, start a new cheat.
-                if subsequent.types.contains(&TokenType::EndOfBlock) {
+                if next_token.types.contains(&TokenType::EndOfBlock) {
 
                     // Set cheat as parsed
                     cheat.state = CheatStates::Parsed;
@@ -338,17 +341,30 @@ fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
     output
 }
 
-fn decrypt_and_translate(state: &State, game: &Game) {
+fn decrypt_and_translate(state: &State, game: &mut Game) {
     // TODO: Make an ARMAX disc hash if we're using ARMAX output w/ auto verifier
-    if state.outcrypt.code.device == CodeDevice::ARMAX && state.verifier == armax::VerifierMode::Auto {
+    if state.outcrypt.code.device == CodeDevice::ARMAX && state.armax_verifier == armax::VerifierMode::Auto {
         panic!("[!] ARMAX disc hashes not implemented yet");
     }
 
     // TODO: Reset CB devices for input mode
 
-    for cheat in &game.cheats {
+    for mut cheat in &game.cheats {
         // Decrypt the code
-        // TODO: Left off here
+        // TODO: This must become more efficient as part of the Great Refactoring
+        match state.incrypt.code.format {
+            CodeFormat::AR1 => {}
+            CodeFormat::AR2 => {}
+            CodeFormat::ARMAX => {
+                armax::decrypt::batch(&mut cheat.codes, state.armax_seeds.clone());
+            }
+            CodeFormat::CB => {}
+            CodeFormat::CB7 => {}
+            CodeFormat::GS3 => {}
+            CodeFormat::GS5 => {}
+            CodeFormat::MAXRAW => {}
+            CodeFormat::RAW => {}
+        }
     }
 
     // TODO: Reset CB devices for output mode
@@ -388,5 +404,5 @@ pub fn minimal_conversion() {
     game.cheats = build_cheat_list(tokens);
 
     // Decrypt and translate cheats
-    decrypt_and_translate(&state, &game);
+    decrypt_and_translate(&state, &mut game);
 }

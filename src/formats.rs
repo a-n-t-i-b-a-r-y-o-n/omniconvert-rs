@@ -1,5 +1,5 @@
 // Code encoding formats
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum CodeFormat {
     AR1,
     AR2,
@@ -13,7 +13,7 @@ pub enum CodeFormat {
 }
 
 // Code "devices" to use
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum CodeDevice {
     AR1,
     AR2,
@@ -24,7 +24,7 @@ pub enum CodeDevice {
 }
 
 // Code with friendly name, format, and device
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct CodeType {
     pub name:   &'static str,
     pub format: CodeFormat,
