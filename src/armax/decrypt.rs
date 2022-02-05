@@ -134,8 +134,7 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                             output.push((octet1, octet2));
                         }
                         else {
-                            panic!("[!] Parity bit validation failed! Octets: {} / {}", octet1, octet2);
-                            return None
+                            println!("[!] Parity bit validation failed! Octets: {} / {}", octet1, octet2);
                         }
                     }
                 }
@@ -196,7 +195,6 @@ pub fn batch(input: &mut Vec<u32>, seeds: &[u32; 32]) -> Vec<u32> {
     output
 }
 
-// TODO: Define the tables referenced in decrypt_pair (e.g. table6, table4, ...)
 // Decrypt a pair of ARMAX octets
 fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
     // Byte swap 1/2

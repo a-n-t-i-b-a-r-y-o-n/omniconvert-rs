@@ -8,6 +8,7 @@ mod armax;
 #[cfg(test)]
 mod tests {
     use crate::armax;
+    use crate::game::Game;
     use crate::omniconvert;
 
     #[test]
@@ -34,6 +35,40 @@ mod tests {
     fn armax_decode_single() {
         // Full test code: UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9
         assert_eq!(Some(vec!((3589363552 as u32, 1721823442 as u32))), armax::decrypt::alpha_to_octets(vec!("UQRNER36M3RD5")))
+    }
+
+    #[test]
+    fn armax_decrypt_single() {
+        // Test input: "Enable Code" for Kingdom Hearts
+        let test_input = "UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9";
+
+        // Default state
+        let mut state: omniconvert::State = omniconvert::State::new();
+
+        // Dummy game object
+        let mut game: Game = Game {
+            id: 0x1234&0x1FF,       // TODO: Figure out the game id mask thing
+            name: "New Game".to_string(),
+            cheats: vec![]
+        };
+
+        // Tokenize input
+        let tokens = omniconvert::read_input(test_input, state.incrypt.code.format);
+
+        // Parse input into cheats
+        game.cheats = omniconvert::build_cheat_list(tokens);
+
+        assert!(game.cheats.len() > 0);
+
+        // Decrypt
+        for cheat in &mut game.cheats {
+            cheat.codes = armax::decrypt::batch(&mut cheat.codes, &state.armax_seeds);
+        }
+
+        assert!(game.cheats.len() > 0);
+        assert!(game.cheats[0].codes.len() > 0);
+
+
     }
 
     /*

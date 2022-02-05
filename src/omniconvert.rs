@@ -5,7 +5,7 @@ use crate::token::{Token, TokenType};
 use crate::armax;
 
 // Which mode is represented by a given operation/options
-enum CryptMode {
+pub enum CryptMode {
     Input,
     Output,
 }
@@ -25,28 +25,28 @@ enum ParserType {
 }
 
 // Encryption/decryption options
-struct CryptOpt {
-    mode:   CryptMode,
-    code:   CodeType,
+pub struct CryptOpt {
+    pub mode:   CryptMode,
+    pub code:   CodeType,
 }
 
-struct State {
+pub struct State {
     // Input & output formats
-    incrypt:    CryptOpt,
+    pub incrypt:    CryptOpt,
     outcrypt:   CryptOpt,
     // Parser options
     parser:     ParserType,
     // ARMAX Verifier mode
     armax_verifier:   armax::VerifierMode,
     // ARMAX Seeds
-    armax_seeds: [u32; 32],
+    pub armax_seeds: [u32; 32],
     // Game region
     region:     Region,
 }
 
 impl State {
     // Initialize the default environment
-    fn new() -> Self {
+    pub fn new() -> Self {
         // Get list of supported formats
         let mut formats = get_formats();
         // Return default State object
@@ -71,7 +71,7 @@ impl State {
 
 // Tokenize input based on a given format
 // Remarks: Most formats are handled similarly, with the exception of ARMAX
-fn read_input(input: &str, format: CodeFormat) -> Vec<Token> {
+pub fn read_input(input: &str, format: CodeFormat) -> Vec<Token> {
 
     // Output tokens
     let mut output: Vec<Token> = vec![];
@@ -173,7 +173,7 @@ fn read_input(input: &str, format: CodeFormat) -> Vec<Token> {
 }
 
 // Build a vec of Cheat objects from a vec of Token objects
-fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
+pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
     // Output cheat list
     let mut output: Vec<Cheat> = vec![];
 
@@ -356,7 +356,7 @@ fn decrypt_and_translate(state: &State, game: &mut Game) {
             CodeFormat::AR1 => {}
             CodeFormat::AR2 => {}
             CodeFormat::ARMAX => {
-                cheat.codes = armax::decrypt::batch(&mut cheat.codes, &state.armax_seeds.clone());
+                cheat.codes = armax::decrypt::batch(&mut cheat.codes, &state.armax_seeds);
             }
             CodeFormat::CB => {}
             CodeFormat::CB7 => {}
@@ -380,28 +380,23 @@ pub fn minimal_conversion() {
     println!("--> Begin conversion...");
     let mut state: State = State::new();
 
-    // TODO: Build ARMAX seeds
-
     // TODO: Build GS3 seeds
 
     // Initialize game object
     println!("[-] Initializing game object");
-    // TODO: Get Game ID from user
-    let mut game: Game = Game {
-        id: 0x1234&0x1FF,       // TODO: Figure out the game id mask thing
-        name: "New Game".to_string(),
-        cheats: vec![]
-    };
+    let mut game: Game = Game::new();
+
+    // TODO: Get input from user
 
     // Read test input
     println!("[-] Reading input");
-    // TODO: Read input into tokens
     let tokens = read_input(test_input, state.incrypt.code.format);
 
     // Parse tokens into cheats
     println!("[-] Building cheat list");
-    // TODO: Parse tokens into cheats
     game.cheats = build_cheat_list(tokens);
+
+    // TODO: Get Game ID from first cheat
 
     // Decrypt and translate cheats
     decrypt_and_translate(&state, &mut game);
