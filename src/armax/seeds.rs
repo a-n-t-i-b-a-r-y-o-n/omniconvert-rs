@@ -19,6 +19,13 @@ pub fn generate(reverse: bool) -> [u32; 32] {
 
     for i in 0..56 {
         tmp = table::G0[i] - 1;
+        let a: u8 = tmp >> 3;
+        let b: u8 = tmp & 7;
+        let c: u32 = (table::GS[a as usize] & table::G1[b as usize]) as u32;
+        let d: u32 = (u32::MAX as u64 + 1u64 - c as u64) as u32;
+        let e: u8 = (d >> 31) as u8;
+        arr0[i] = e;
+        /*
         arr0[i] = (
             (
                 (
@@ -26,7 +33,12 @@ pub fn generate(reverse: bool) -> [u32; 32] {
                 ) as u32
             ) >> 31
         ) as u8;
+
+         */
     }
+
+
+
 
     for i in 0..16 {
         arr2 = [0u8; 8];
@@ -44,15 +56,35 @@ pub fn generate(reverse: bool) -> [u32; 32] {
                 tmp -= 0x1C;
             }
 
-            arr1[j as usize] = arr0[tmp as usize];
+            let a0: u8 = arr0[tmp as usize];
+
+            arr1[j as usize] = a0;
         }
 
+
+
         for j in 0..48 {
-            if arr1[(table::G3[j]-1) as usize] > 0 {
+
+            let a1: u8 = table::G3[j];
+            let b1: u8 = a1-1;
+            let c1 = arr1[(b1) as usize];
+
+            if c1 == 0 {
                 continue;
             }
-            tmp = (((j * 0x2AAB) >> 16) - (j >> 0x1F)) as u8;
-            arr2[tmp as usize] |= (table::G1[(j - (tmp * 6) as usize) as usize] >> 2);
+
+            let d1 = (j * 0x2AAB);
+            let e1 = (d1 >> 16);
+            let f1 = (j >> 0x1F);
+
+            tmp = (e1 - f1) as u8;
+
+            let g1 = (tmp * 6);
+            let h1 = table::G1[(j - g1 as usize)];
+            let i1 = (h1 as usize >> 2) as u8;
+            let j1 = arr2[tmp as usize] | i1;
+
+            arr2[tmp as usize] = j1;
         }
 
         output[i << 1] = (

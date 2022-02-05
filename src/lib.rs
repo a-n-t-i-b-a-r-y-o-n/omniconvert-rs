@@ -38,11 +38,13 @@ mod tests {
         assert_eq!(Some(vec!((3589363552 as u32, 1721823442 as u32))), armax::decrypt::alpha_to_octets(vec!("UQRNER36M3RD5")))
     }
 
+    /*
     #[test]
     fn minimal_conversion() {
         omniconvert::minimal_conversion();
         assert!(true);
     }
+     */
 }
 
 
