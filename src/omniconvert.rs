@@ -39,7 +39,7 @@ struct State {
     // ARMAX Verifier mode
     armax_verifier:   armax::VerifierMode,
     // ARMAX Seeds
-    armax_seeds: Vec<u32>,
+    armax_seeds: [u32; 32],
     // Game region
     region:     Region,
 }
@@ -63,7 +63,7 @@ impl State {
             },
             parser: ParserType::Simple,
             armax_verifier: armax::VerifierMode::Auto,
-            armax_seeds: armax::seeds::gen_seeds(),
+            armax_seeds: armax::seeds::generate(false),
             region: Region::USA
         }
     }
@@ -349,14 +349,14 @@ fn decrypt_and_translate(state: &State, game: &mut Game) {
 
     // TODO: Reset CB devices for input mode
 
-    for mut cheat in &game.cheats {
+    for mut cheat in game.cheats.clone() {
         // Decrypt the code
         // TODO: This must become more efficient as part of the Great Refactoring
         match state.incrypt.code.format {
             CodeFormat::AR1 => {}
             CodeFormat::AR2 => {}
             CodeFormat::ARMAX => {
-                armax::decrypt::batch(&mut cheat.codes, state.armax_seeds.clone());
+                cheat.codes = armax::decrypt::batch(&mut cheat.codes, &state.armax_seeds.clone());
             }
             CodeFormat::CB => {}
             CodeFormat::CB7 => {}

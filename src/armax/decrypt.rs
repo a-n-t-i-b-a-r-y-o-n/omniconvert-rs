@@ -1,4 +1,5 @@
 use crate::cheat::Cheat;
+use crate::armax::table;
 
 // TODO: Translate alpha_to_octets() from alphatobin() less literally
 // Decode ARMAX lines into pairs of address/value octets
@@ -148,23 +149,19 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
     Some(output)
 }
 
-pub fn batch(input: &mut Vec<u32>, seeds: Vec<u32>) {
+pub fn batch(input: &mut Vec<u32>, seeds: &[u32; 32]) -> Vec<u32> {
     let mut output: Vec<u32> = vec!();
-    // Default ActionReplay MAX seed
-    // TODO: Investigate ARMAX seeds.
-    // This is declared in omniconvert.c as `armseeds` for use in batch ARMAX encryption/decryption functions.
-    // In armax.c, `armBatchDecryptFull()` receives it as the `ar2key` parameter.
-    let default_seed: u32 = 0x04030209;
 
     // Decrypt address/value pairs from pairs of codes
     let mut codes = input.iter();
     while let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
-        let (out_addr, out_val) = decrypt_pair((*in_addr, *in_val), &seeds);
+        let (out_addr, out_val) = decrypt_pair((*in_addr, *in_val), seeds);
         output.push(out_addr);
         output.push(out_val);
     }
     // TODO: Check for trailing address/value?
 
+    // Read game metadata
     if output.len() > 0 {
         let mut tmp: [u32; 4] = [0u32; 4];
         tmp[0] = output[0];
@@ -172,20 +169,36 @@ pub fn batch(input: &mut Vec<u32>, seeds: Vec<u32>) {
         tmp[2] = 4u32;  // TODO: [oddity] Original source comment just says "skip crc"
         tmp[3] = input.len() as u32;
 
-        // TODO: You left off here.
-        // Start with the getbitstring() function, which is applied to tmp[] and another slice.
-        // Don't forget to define the tablex[] slices mentioned in decrypt_pair()
+        // TODO: Apply game metadata properties to Game object
+        let game_id = read_bit_string(&mut tmp, 13);
+        let code_id = read_bit_string(&mut tmp, 19);
+        let master_code = read_bit_string(&mut tmp, 1);
+        let unknown = read_bit_string(&mut tmp, 1);
+        let region = read_bit_string(&mut tmp, 2);
+
+        println!("[+] Properties:");
+        println!("\tGame ID: {}", game_id);
+        println!("\tCode ID: {}", code_id);
+        println!("\tMaster Code: {}", master_code);
+        println!("\tUnknown: {}", unknown);
+        println!("\tRegion: {}", region);
+
+        // TODO: Verify the code with CRC16
+        let check = output[0];
+        output[0] &= 0x0FFFFFFF;
+
     }
     else {
         // TODO: Handle errors more elegantly
         panic!("[!] No ARMAX cheats decrypted");
     }
 
+    output
 }
 
 // TODO: Define the tables referenced in decrypt_pair (e.g. table6, table4, ...)
 // Decrypt a pair of ARMAX octets
-fn decrypt_pair(input: (u32, u32), seeds: &Vec<u32>) -> (u32, u32) {
+fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
     // Byte swap 1/2
     // armax.c:getcode()
     let mut addr = swap_bytes(input.0);
@@ -193,7 +206,9 @@ fn decrypt_pair(input: (u32, u32), seeds: &Vec<u32>) -> (u32, u32) {
 
     // Unscramble 1/2
     // armax.c:unscramble1()
-    (addr, val) = unscramble_1(addr, val);
+    let unscrambled = unscramble_1(addr, val);
+    addr = unscrambled.0;
+    val = unscrambled.1;
 
     // Apply seeds
     let mut range = (0..32).into_iter();
@@ -205,25 +220,27 @@ fn decrypt_pair(input: (u32, u32), seeds: &Vec<u32>) -> (u32, u32) {
         let mut tmp = rotate_right(val, 4) ^ seeds[seed_a];
         let mut tmp2 = val ^ seeds[seed_b];
         addr ^= (
-            table6[tmp&63]       ^  table4[(tmp>>8)&63]  ^
-            table2[(tmp>>16)&63] ^  table0[(tmp>>24)&63] ^
-            table7[tmp2&63]      ^  table5[(tmp2>>8)&63] ^
-            table3[(tmp2>>16)&63]^  table1[(tmp2>>24)&63]
+            table::T6[(tmp&63) as usize]       ^  table::T4[((tmp>>8)&63) as usize]  ^
+            table::T2[((tmp>>16)&63) as usize] ^  table::T0[((tmp>>24)&63) as usize] ^
+            table::T7[(tmp2&63) as usize]      ^  table::T5[((tmp2>>8)&63) as usize] ^
+            table::T3[((tmp2>>16)&63) as usize]^  table::T1[((tmp2>>24)&63) as usize]
         );
 
         tmp = rotate_right(addr,4) ^ seeds[seed_c];
         tmp2 = addr ^ seeds[seed_d];
         val ^= (
-            table6[tmp&63]       ^  table4[(tmp>>8)&63]  ^
-            table2[(tmp>>16)&63] ^  table0[(tmp>>24)&63] ^
-            table7[tmp2&63]      ^  table5[(tmp2>>8)&63] ^
-            table3[(tmp2>>16)&63]^  table1[(tmp2>>24)&63]
+            table::T6[(tmp&63) as usize]       ^  table::T4[((tmp>>8)&63) as usize]  ^
+            table::T2[((tmp>>16)&63) as usize] ^  table::T0[((tmp>>24)&63) as usize] ^
+            table::T7[(tmp2&63) as usize]      ^  table::T5[((tmp2>>8)&63) as usize] ^
+            table::T3[((tmp2>>16)&63) as usize]^  table::T1[((tmp2>>24)&63) as usize]
         );
     }
 
     // Unscramble 2/2
     // armax.c:unscramble2()
-    (addr, val) = unscramble_2(addr, value);
+    let unscrambled = unscramble_2(addr, val);
+    addr = unscrambled.0;
+    val = unscrambled.1;
 
     // Byte swap 2/2
     addr = swap_bytes(val);
@@ -284,8 +301,28 @@ fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
     (addr, val)
 }
 
-fn rotate_left(input: u32, rot: u8) -> u32 { (input << rot) | (input >> (32 - rot)) }
+fn read_bit_string(ctrl: &mut [u32; 4], length: u8) -> u32 {
+    let mut tmp: u32 = ctrl[0] + (ctrl[1] << 2);
+    let mut output: u32 = 0;
 
+    for _ in length..0 {
+        if ctrl[2] > 31 {
+            ctrl[2] = 0;
+            ctrl[1] += 1;
+            tmp = ctrl[0] + (ctrl[1] << 2);
+        }
+        if ctrl[1] >= ctrl[3] {
+            panic!("Error getting bitstring of length {}", length);
+        }
+        output = ((output << 1) | ((tmp >> (31 - ctrl[2])) & 1));
+        ctrl[2] += 1;
+    }
+
+    output
+}
+
+// Original sources: armax.c:rotate_left() & armax.c:rotate_right()
+fn rotate_left(input: u32, rot: u8) -> u32 { (input << rot) | (input >> (32 - rot)) }
 fn rotate_right(input: u32, rot: u8) -> u32 { (input >> rot) | (input << (32 - rot)) }
 
 // Original source: armax.c:byteswap()

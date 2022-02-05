@@ -1,5 +1,6 @@
 pub mod decrypt;
 pub mod seeds;
+mod table;
 
 use std::iter::{Enumerate, FilterMap};
 use std::slice::Iter;
