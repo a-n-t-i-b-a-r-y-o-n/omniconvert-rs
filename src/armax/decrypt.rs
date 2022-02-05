@@ -118,7 +118,6 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
             None => {
                 // TODO: Handle parsing errors gracefully
                 panic!("[!] Unable to get character at 12 from input of length {}", input[octet_count>>1].len());
-                return None
             }
             Some(char_in) => {
                 // Get index of input char in cipher alphabet
@@ -126,7 +125,6 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                     None => {
                         // TODO: Handle parsing error gracefully
                         panic!("[!] Received non-alphanumeric character \"{}\" in ARMAX code at index {}", char_in, 12);
-                        return None
                     }
                     Some(match_index) => {
                         if parity&1 != ((match_index as u8)&1) {
@@ -134,7 +132,9 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                             output.push((octet1, octet2));
                         }
                         else {
-                            println!("[!] Parity bit validation failed! Octets: {} / {}", octet1, octet2);
+                            println!("[!] Parity bit validation failed! Octets: {:08X} / {:08X}", octet1, octet2);
+                            // Push anyway
+                            output.push((octet1, octet2));
                         }
                     }
                 }
@@ -217,21 +217,11 @@ fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
 
         let mut tmp = rotate_right(val, 4) ^ seeds[seed_a];
         let mut tmp2 = val ^ seeds[seed_b];
-        addr ^= (
-            table::T6[(tmp&63) as usize]       ^  table::T4[((tmp>>8)&63) as usize]  ^
-            table::T2[((tmp>>16)&63) as usize] ^  table::T0[((tmp>>24)&63) as usize] ^
-            table::T7[(tmp2&63) as usize]      ^  table::T5[((tmp2>>8)&63) as usize] ^
-            table::T3[((tmp2>>16)&63) as usize]^  table::T1[((tmp2>>24)&63) as usize]
-        );
+        addr ^= octet_mask(tmp, tmp2);
 
         tmp = rotate_right(addr,4) ^ seeds[seed_c];
         tmp2 = addr ^ seeds[seed_d];
-        val ^= (
-            table::T6[(tmp&63) as usize]       ^  table::T4[((tmp>>8)&63) as usize]  ^
-            table::T2[((tmp>>16)&63) as usize] ^  table::T0[((tmp>>24)&63) as usize] ^
-            table::T7[(tmp2&63) as usize]      ^  table::T5[((tmp2>>8)&63) as usize] ^
-            table::T3[((tmp2>>16)&63) as usize]^  table::T1[((tmp2>>24)&63) as usize]
-        );
+        val ^= octet_mask(tmp, tmp2);
     }
 
     // Unscramble 2/2
@@ -247,7 +237,15 @@ fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
     (addr, val)
 }
 
-fn unscramble_1(mut addr: u32, mut val: u32) -> (u32, u32) {
+// Mask XOR'd to address/value octets
+fn octet_mask(i1: u32, i2: u32) -> u32 {
+    table::T6[(i1&63) as usize]             ^  table::T4[((i1>>8)&63) as usize]  ^
+        table::T2[((i1>>16)&63) as usize]   ^  table::T0[((i1>>24)&63) as usize] ^
+        table::T7[(i2&63) as usize]         ^  table::T5[((i2>>8)&63) as usize]  ^
+        table::T3[((i2>>16)&63) as usize]   ^  table::T1[((i2>>24)&63) as usize]
+}
+
+pub fn unscramble_1(mut addr: u32, mut val: u32) -> (u32, u32) {
     val = rotate_left(val, 4);
 
     let mut tmp: u32 = ((addr ^ val) & 0xF0F0F0F0);
@@ -325,6 +323,4 @@ fn rotate_right(input: u32, rot: u8) -> u32 { (input >> rot) | (input << (32 - r
 
 // Original source: armax.c:byteswap()
 // Shuffle bytes around
-fn swap_bytes(input: u32) -> u32 {
-    (input << 24) | ((input << 8) & 0x00FF0000) | ((input >> 8) & 0x0000FF00) | (input >> 24)
-}
+pub fn swap_bytes(input: u32) -> u32 { (input << 24) | ((input << 8) & 0x00FF0000) | ((input >> 8) & 0x0000FF00) | (input >> 24) }

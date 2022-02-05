@@ -38,6 +38,49 @@ mod tests {
     }
 
     #[test]
+    fn armax_alpha_to_octets() {
+
+    }
+
+    #[test]
+    fn armax_unscramble_1() {
+        // Test input: "Enable Code" for Kingdom Hearts
+        let test_input = "UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9";
+
+        // Default state
+        let mut state: omniconvert::State = omniconvert::State::new();
+
+        // Dummy game object
+        let mut game: Game = Game::new();
+
+        // Tokenize input
+        let tokens = omniconvert::read_input(test_input, state.incrypt.code.format);
+
+        // Parse input into cheats
+        game.cheats = omniconvert::build_cheat_list(tokens);
+
+        assert!(game.cheats.len() > 0);
+
+        // Decrypt codes of first cheat
+        let mut codes = game.cheats[0].codes.iter();
+        while let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
+            // Swap bytes
+            let mut addr = armax::decrypt::swap_bytes(*in_addr);
+            let mut val = armax::decrypt::swap_bytes(*in_val);
+
+            // Unscramble step 1
+            let unscrambled = armax::decrypt::unscramble_1(addr, val);
+
+            println!("({:08X}/{:08X}) -> ({:08X}/{:08X})", addr, val, unscrambled.0, unscrambled.1);
+        }
+    }
+
+    #[test]
+    fn armax_unscramble_2() {
+
+    }
+
+    #[test]
     fn armax_decrypt_single() {
         // Test input: "Enable Code" for Kingdom Hearts
         let test_input = "UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9";
@@ -46,11 +89,7 @@ mod tests {
         let mut state: omniconvert::State = omniconvert::State::new();
 
         // Dummy game object
-        let mut game: Game = Game {
-            id: 0x1234&0x1FF,       // TODO: Figure out the game id mask thing
-            name: "New Game".to_string(),
-            cheats: vec![]
-        };
+        let mut game: Game = Game::new();
 
         // Tokenize input
         let tokens = omniconvert::read_input(test_input, state.incrypt.code.format);
