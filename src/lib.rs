@@ -19,9 +19,7 @@ mod tests {
             0x34052C27, 0x202E1D3A, 0x07121F2D, 0x0D28333C, 0x160B3138, 0x3214273B, 0x02150B1F, 0x020B3E3C,
         ];
 
-        let test_seeds = armax::seeds::generate(false);
-
-        assert_eq!(test_seeds.len(), correct_seeds.len());
+        let test_seeds = armax::seeds::generate();
 
         assert_eq!(test_seeds, correct_seeds)
     }

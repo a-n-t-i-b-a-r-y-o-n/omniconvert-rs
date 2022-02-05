@@ -63,7 +63,7 @@ impl State {
             },
             parser: ParserType::Simple,
             armax_verifier: armax::VerifierMode::Auto,
-            armax_seeds: armax::seeds::generate(false),
+            armax_seeds: armax::seeds::generate(),
             region: Region::USA
         }
     }
