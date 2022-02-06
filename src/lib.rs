@@ -21,7 +21,7 @@ WC60-T93N-MGJBW
 VFE7-FK9B-M32EA
 KQEK-5ZFB-F8UP9"#;
 
-    // "Enable Code" and "Have All Trinities"
+    // "Enable Code", "Have All Trinities", and "Save Anywhere" for Kingdom Hearts (USA)
     const TEST_CHEAT_MULTIPLE: &str =
 r#"Enable Code
 UQRN-ER36-M3RD5

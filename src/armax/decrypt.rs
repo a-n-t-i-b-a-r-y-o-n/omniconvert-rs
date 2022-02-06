@@ -16,10 +16,11 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
     let mut octet_count = 0;
 
     let alphabet = vec!(
-        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K',
-        'M', 'N', 'P', 'Q', 'R', 'T', 'U', 'V', 'W', 'X',
-        'Y', 'Z');
+        '0', '1', '2', '3', '4', '5', '6', '7',
+        '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
+        'G', 'H', 'J', 'K', 'M', 'N', 'P', 'Q',
+        'R', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z'
+    );
 
     // Read input lines
     while lines_left > 0 {
@@ -218,6 +219,7 @@ pub fn whole_game(game: Game, input: &Vec<u32>, seeds: &[u32; 32]) -> Game {
 
 }*/
 
+// Equivalent to armax.c:batchdecrypt() + armax.c:armBatchDecryptFull()
 pub fn decrypt_cheat(input: Cheat, seeds: &[u32; 32]) -> Cheat {
 
     // Decrypt address/value pairs from pairs of u32 codes
@@ -238,9 +240,22 @@ pub fn decrypt_cheat(input: Cheat, seeds: &[u32; 32]) -> Cheat {
         // TODO: Verify the output codes with CRC16
         let check = out_codes[0];
         out_codes[0] &= 0x0FFFFFFF;
-        decrypted.codes = out_codes;
+
+        // Determine ARMAX verifier code count given 2 codes per line
+        let verifier_code_count = (read_verifier_length(&out_codes) as usize) * 2;
+
+        // Determine non-verifier ARMAX code count
+        let real_code_count = out_codes.len() - verifier_code_count;
+
+        if real_code_count > 0 {
+            for i in 0..real_code_count {
+                out_codes[i+verifier_code_count] = swap_bytes(out_codes[i+verifier_code_count]);
+            }
+        }
+
 
         // Return our decrypted cheat
+        decrypted.codes = out_codes;
         decrypted
     }
     else {
@@ -249,26 +264,6 @@ pub fn decrypt_cheat(input: Cheat, seeds: &[u32; 32]) -> Cheat {
         // We didn't decrypt anything - return the original cheat
         input
     }
-}
-
-// Read metadata from a decrypted cheat
-fn read_cheat_meta(input: &Cheat, codes: &Vec<u32>) -> Cheat {
-    let mut output = input.clone();
-
-    // Key for bit string operations
-    let mut key: [u32; 3] = [
-        0u32,
-        4u32,   // TODO: [oddity] Original source comment just says "skip crc"
-        input.codes.len() as u32,
-    ];
-
-    // WARNING: READING PERMUTES THE KEY ARRAY  -   ORDER MATTERS!
-    output.game_id = read_bit_string(&codes, &mut key, 13);
-    output.id = read_bit_string(&codes, &mut key, 19);
-    output.enable_code = read_bit_string(&codes, &mut key, 1) == 1;
-    let _unknown= read_bit_string(&codes, &mut key, 1) == 1;
-    output.region = read_bit_string(&codes, &mut key, 2) as u8;
-    output
 }
 
 // Decrypt a pair of ARMAX octets
@@ -323,6 +318,7 @@ pub fn octet_mask(i1: u32, i2: u32) -> u32 {
         table::T3[((i2>>16)&63) as usize]   ^  table::T1[((i2>>24)&63) as usize]
 }
 
+// Unscramble operation 1 of 2
 pub fn unscramble_1(mut addr: u32, mut val: u32) -> (u32, u32) {
     val = rotate_left(val, 4);
 
@@ -348,7 +344,7 @@ pub fn unscramble_1(mut addr: u32, mut val: u32) -> (u32, u32) {
 
     (addr, val)
 }
-
+// Unscramble operation 2 of 2
 pub fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
     val = rotate_right(val, 1);
 
@@ -375,6 +371,89 @@ pub fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
     (addr, val)
 }
 
+// Read metadata from decrypted codes and update provided input Cheat
+fn read_cheat_meta(input: &Cheat, codes: &Vec<u32>) -> Cheat {
+    // Clone input to update and return
+    let mut output = input.clone();
+
+    // Key array for bit string operations
+    let mut key: [u32; 3] = [
+        0u32,
+        4u32,   // Skip reading CRC bytes
+        codes.len() as u32,
+    ];
+
+    // WARNING: READING PERMUTES THE KEY ARRAY - ORDER MATTERS!
+    output.game_id = read_bit_string(&codes, &mut key, 13);
+    output.id = read_bit_string(&codes, &mut key, 19);
+    output.enable_code = read_bit_string(&codes, &mut key, 1) == 1;
+    let _unknown= read_bit_string(&codes, &mut key, 1) == 1;
+    output.region = read_bit_string(&codes, &mut key, 2) as u8;
+    output
+}
+
+// Original source: armax.c:armReadVerifier()
+// Read verifier bit string from a decrypted cheat and return the number of code lines it occupies
+fn read_verifier_length(input: &Vec<u32>) -> i16 {
+    // Output line count
+    let mut lines: i16 = 0;
+
+    // Bit counter
+    let mut bits_read = 0;
+
+    // Expansion sizes
+    let exp_sizes: [u8; 8] = [
+        6,      // ?
+        10,     // ?
+        12,     // ?
+        19,     // Folder content
+        19,     // Folder content
+        8,      // Folder
+        7,      // ?
+        32,     // Disc hashes, other?
+    ];
+
+    // Key array for bit string operations
+    let mut key: [u32; 3] = [
+        1u32,   // Skip reading first WORD
+        8u32,   // Skip reading first 8 bytes
+        input.len() as u32,
+    ];
+
+    // Get initial verifier terminator
+    let mut terminator = read_bit_string(input, &mut key, 1);   // TODO: Return an error if this errors
+    bits_read += 1;
+
+    while terminator < 1 {
+        // Get index into expansion size array
+        let exp_index = read_bit_string(input, &mut key, 3) as usize;
+        bits_read += 3;
+
+        // Get expansion data
+        let exp_data = read_bit_string(input, &mut key, exp_sizes[exp_index]);
+        bits_read += exp_sizes[exp_index];
+
+        // Get next verifier terminator
+        terminator = read_bit_string(input, &mut key, 1);
+        bits_read += 1;
+    }
+
+    // There's only 24 bits on the first line for [ terminator | exp_index | exp_data ]
+    if bits_read >= 24 {
+        // Count first line
+        bits_read -= 24;
+        lines += 1;
+
+        // Calculate the number of additional lines occupied
+        if bits_read >= 64 {
+            lines += (bits_read / 64) as i16;
+        }
+    }
+
+    lines
+}
+
+// Read bits from arbitrary indexes within a Vec<u32> to form a u32
 fn read_bit_string(input: &Vec<u32>, ctrl: &mut [u32; 3], length: u8) -> u32 {
 
     let mut output: u32 = 0;
@@ -387,6 +466,7 @@ fn read_bit_string(input: &Vec<u32>, ctrl: &mut [u32; 3], length: u8) -> u32 {
             tmp = magic::u32_pointer_increment(input, ctrl[0] << 2);
         }
         if ctrl[0] >= ctrl[2] {
+            // TODO: Allow indicating error here instead of just panicking
             panic!("Error getting bitstring of length {}", length);
         }
         output = ((output << 1) | ((tmp >> (31 - ctrl[1])) & 1));
@@ -397,7 +477,9 @@ fn read_bit_string(input: &Vec<u32>, ctrl: &mut [u32; 3], length: u8) -> u32 {
 }
 
 // Original sources: armax.c:rotate_left() & armax.c:rotate_right()
+// Rotate bytes left
 pub fn rotate_left(input: u32, rot: u8) -> u32 { (input << rot) | (input >> (32 - rot)) }
+// Rotate bytes right
 pub fn rotate_right(input: u32, rot: u8) -> u32 { (input >> rot) | (input << (32 - rot)) }
 
 // Original source: armax.c:byteswap()
