@@ -4,6 +4,7 @@ mod game;
 mod omniconvert;
 mod token;
 mod armax;
+mod magic;
 
 #[cfg(test)]
 mod tests {
@@ -42,6 +43,7 @@ mod tests {
 
     }
 
+    // Part of decrypt_pair()
     #[test]
     fn armax_unscramble_1() {
         // Test input: "Enable Code" for Kingdom Hearts
@@ -61,27 +63,197 @@ mod tests {
 
         assert!(game.cheats.len() > 0);
 
-        // Decrypt codes of first cheat
+        // Get first code of first cheat
         let mut codes = game.cheats[0].codes.iter();
-        while let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
+        if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
             // Swap bytes
             let mut addr = armax::decrypt::swap_bytes(*in_addr);
             let mut val = armax::decrypt::swap_bytes(*in_val);
-
             // Unscramble step 1
             let unscrambled = armax::decrypt::unscramble_1(addr, val);
 
-            println!("({:08X}/{:08X}) -> ({:08X}/{:08X})", addr, val, unscrambled.0, unscrambled.1);
+            assert_eq!(unscrambled.0, 2122126365);
+            assert_eq!(unscrambled.1, 4190765348);
+        }
+        else {
+            assert!(false);
+        }
+
+    }
+
+    // Part of decrypt_pair()
+    #[test]
+    fn armax_apply_seeds() {
+        // Test input: "Enable Code" for Kingdom Hearts
+        let test_input = "UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9";
+
+        // Default state
+        let mut state: omniconvert::State = omniconvert::State::new();
+        let seeds = state.armax_seeds;
+
+        // Dummy game object
+        let mut game: Game = Game::new();
+
+        // Tokenize input
+        let tokens = omniconvert::read_input(test_input, state.incrypt.code.format);
+
+        // Parse input into cheats
+        game.cheats = omniconvert::build_cheat_list(tokens);
+
+        assert!(game.cheats.len() > 0);
+
+        // Get first code of first cheat
+        let mut codes = game.cheats[0].codes.iter();
+        if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
+            // Swap bytes
+            let mut addr = armax::decrypt::swap_bytes(*in_addr);
+            let mut val = armax::decrypt::swap_bytes(*in_val);
+            // Unscramble step 1
+            let unscrambled = armax::decrypt::unscramble_1(addr, val);
+            addr = unscrambled.0;
+            val = unscrambled.1;
+
+            assert_eq!(unscrambled.0, 2122126365);
+            assert_eq!(unscrambled.1, 4190765348);
+
+            // Apply seeds
+            let mut range = (0..32).into_iter();
+            while let (
+                // Seed indexes
+                Some(seed_a), Some(seed_b), Some(seed_c), Some(seed_d)
+            ) = (range.next(), range.next(), range.next(), range.next()) {
+
+                let mut tmp = armax::decrypt::rotate_right(val, 4) ^ seeds[seed_a];
+                let mut tmp2 = val ^ seeds[seed_b];
+                addr ^= armax::decrypt::octet_mask(tmp, tmp2);
+
+                tmp = armax::decrypt::rotate_right(addr,4) ^ seeds[seed_c];
+                tmp2 = addr ^ seeds[seed_d];
+                val ^= armax::decrypt::octet_mask(tmp, tmp2);
+            }
+
+            assert_eq!(addr, 870574636);
+            assert_eq!(val, 3363966584);
+        }
+        else {
+            assert!(false);
+        }
+    }
+
+    // Part of decrypt_pair()
+    #[test]
+    fn armax_unscramble_2() {
+        // Test input: "Enable Code" for Kingdom Hearts
+        let test_input = "UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9";
+
+        // Default state
+        let mut state: omniconvert::State = omniconvert::State::new();
+        let seeds = state.armax_seeds;
+
+        // Dummy game object
+        let mut game: Game = Game::new();
+
+        // Tokenize input
+        let tokens = omniconvert::read_input(test_input, state.incrypt.code.format);
+
+        // Parse input into cheats
+        game.cheats = omniconvert::build_cheat_list(tokens);
+
+        assert!(game.cheats.len() > 0);
+
+        // Get first code of first cheat
+        let mut codes = game.cheats[0].codes.iter();
+        if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
+            // Swap bytes
+            let mut addr = armax::decrypt::swap_bytes(*in_addr);
+            let mut val = armax::decrypt::swap_bytes(*in_val);
+            // Unscramble step 1
+            let unscrambled = armax::decrypt::unscramble_1(addr, val);
+            addr = unscrambled.0;
+            val = unscrambled.1;
+
+            // TEST: unscramble_1
+            assert_eq!(unscrambled.0, 2122126365);
+            assert_eq!(unscrambled.1, 4190765348);
+
+            // Apply seeds
+            let mut range = (0..32).into_iter();
+            while let (
+                // Seed indexes
+                Some(seed_a), Some(seed_b), Some(seed_c), Some(seed_d)
+            ) = (range.next(), range.next(), range.next(), range.next()) {
+
+                let mut tmp = armax::decrypt::rotate_right(val, 4) ^ seeds[seed_a];
+                let mut tmp2 = val ^ seeds[seed_b];
+                addr ^= armax::decrypt::octet_mask(tmp, tmp2);
+
+                tmp = armax::decrypt::rotate_right(addr,4) ^ seeds[seed_c];
+                tmp2 = addr ^ seeds[seed_d];
+                val ^= armax::decrypt::octet_mask(tmp, tmp2);
+            }
+
+            // TEST: apply_seeds
+            assert_eq!(addr, 870574636);
+            assert_eq!(val, 3363966584);
+
+            let unscrambled = armax::decrypt::unscramble_2(addr, val);
+            addr = unscrambled.0;
+            val = unscrambled.1;
+
+            assert_eq!(addr, 2875815976);
+            assert_eq!(val, 3154530177);
+
+        }
+        else {
+            assert!(false);
         }
     }
 
     #[test]
-    fn armax_unscramble_2() {
+    fn armax_decrypt_single() {
+        // Test input: "Enable Code" for Kingdom Hearts
+        let test_input = "UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9";
+
+        // Default state
+        let mut state: omniconvert::State = omniconvert::State::new();
+        let seeds = &state.armax_seeds;
+
+        // Dummy game object
+        let mut game: Game = Game::new();
+
+        // Tokenize input
+        let tokens = omniconvert::read_input(test_input, state.incrypt.code.format);
+
+        // Parse input into cheats
+        game.cheats = omniconvert::build_cheat_list(tokens);
+
+        assert!(game.cheats.len() > 0);
+
+        // Decrypt
+        let mut codes = game.cheats[0].codes.iter();
+        if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
+            let (out_addr, out_val) = armax::decrypt::decrypt_pair((*in_addr, *in_val), seeds);
+
+            assert_eq!(out_addr, 2169439932);
+            assert_eq!(out_val, 678980011);
+
+            let mut addr = out_addr;
+            let mut val = out_val;
+
+            println!("{} / {}", addr, val);
+        }
+        else {
+            assert!(false);
+        }
+
+        assert!(game.cheats.len() > 0);
+        assert!(game.cheats[0].codes.len() > 0);
+
 
     }
 
     #[test]
-    fn armax_decrypt_single() {
+    fn armax_decrypt_batch() {
         // Test input: "Enable Code" for Kingdom Hearts
         let test_input = "UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9";
 
@@ -100,13 +272,14 @@ mod tests {
         assert!(game.cheats.len() > 0);
 
         // Decrypt
+
         for cheat in &mut game.cheats {
             cheat.codes = armax::decrypt::batch(&mut cheat.codes, &state.armax_seeds);
         }
 
+        // Sanity check
         assert!(game.cheats.len() > 0);
         assert!(game.cheats[0].codes.len() > 0);
-
 
     }
 

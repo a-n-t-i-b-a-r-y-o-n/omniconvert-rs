@@ -1,4 +1,5 @@
 use crate::armax::table;
+use crate::magic;
 
 // Generate ActionReplay MAX seeds
 pub fn generate() -> [u32; 32] {
@@ -48,7 +49,7 @@ fn create_iv() -> [u8; 56] {
         offset = table::G0[i] - 1;
         let gen: u32 = (table::GS[(offset >> 3) as usize] & table::G1[(offset & 7) as usize]) as u32;
         // Emulate C 32-bit overflow behavior with 64-bit
-        let magic: u32 = (u32::MAX as u64 + 1u64 - gen as u64) as u32;
+        let magic: u32 = magic::subtract_from_zero(gen);
 
         output[i] = (magic >> 31) as u8;
     }

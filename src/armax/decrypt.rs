@@ -1,5 +1,6 @@
 use crate::cheat::Cheat;
 use crate::armax::table;
+use crate::magic;
 
 // TODO: Translate alpha_to_octets() from alphatobin() less literally
 // Decode ARMAX lines into pairs of address/value octets
@@ -162,23 +163,22 @@ pub fn batch(input: &mut Vec<u32>, seeds: &[u32; 32]) -> Vec<u32> {
 
     // Read game metadata
     if output.len() > 0 {
-        let mut tmp: [u32; 4] = [0u32; 4];
-        tmp[0] = output[0];
-        tmp[1] = 0u32;
-        tmp[2] = 4u32;  // TODO: [oddity] Original source comment just says "skip crc"
-        tmp[3] = input.len() as u32;
+        let mut tmp: [u32; 3] = [0u32; 3];
+        tmp[0] = 0u32;
+        tmp[1] = 4u32;  // TODO: [oddity] Original source comment just says "skip crc"
+        tmp[2] = input.len() as u32;
 
         // TODO: Apply game metadata properties to Game object
-        let game_id = read_bit_string(&mut tmp, 13);
-        let code_id = read_bit_string(&mut tmp, 19);
-        let master_code = read_bit_string(&mut tmp, 1);
-        let unknown = read_bit_string(&mut tmp, 1);
-        let region = read_bit_string(&mut tmp, 2);
+        let game_id = read_bit_string(&output, &mut tmp, 13);
+        let code_id = read_bit_string(&output, &mut tmp, 19);
+        let master_code = read_bit_string(&output, &mut tmp, 1);
+        let unknown = read_bit_string(&output, &mut tmp, 1);
+        let region = read_bit_string(&output, &mut tmp, 2);
 
         println!("[+] Properties:");
-        println!("\tGame ID: {}", game_id);
-        println!("\tCode ID: {}", code_id);
-        println!("\tMaster Code: {}", master_code);
+        println!("\tGame ID: {:04X}", game_id);
+        println!("\tCode ID: {:08X}", code_id);
+        println!("\tEnable Code: {}", master_code);
         println!("\tUnknown: {}", unknown);
         println!("\tRegion: {}", region);
 
@@ -196,7 +196,7 @@ pub fn batch(input: &mut Vec<u32>, seeds: &[u32; 32]) -> Vec<u32> {
 }
 
 // Decrypt a pair of ARMAX octets
-fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
+pub fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
     // Byte swap 1/2
     // armax.c:getcode()
     let mut addr = swap_bytes(input.0);
@@ -231,14 +231,17 @@ fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
     val = unscrambled.1;
 
     // Byte swap 2/2
-    addr = swap_bytes(val);
-    val = swap_bytes(addr);
+    // Note that this also swaps the address and value
+    let tmp_addr = addr;
+    let tmp_val = val;
+    addr = swap_bytes(tmp_val);
+    val = swap_bytes(tmp_addr);
 
     (addr, val)
 }
 
 // Mask XOR'd to address/value octets
-fn octet_mask(i1: u32, i2: u32) -> u32 {
+pub fn octet_mask(i1: u32, i2: u32) -> u32 {
     table::T6[(i1&63) as usize]             ^  table::T4[((i1>>8)&63) as usize]  ^
         table::T2[((i1>>16)&63) as usize]   ^  table::T0[((i1>>24)&63) as usize] ^
         table::T7[(i2&63) as usize]         ^  table::T5[((i2>>8)&63) as usize]  ^
@@ -271,7 +274,7 @@ pub fn unscramble_1(mut addr: u32, mut val: u32) -> (u32, u32) {
     (addr, val)
 }
 
-fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
+pub fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
     val = rotate_right(val, 1);
 
     let mut tmp: u32 = (addr ^ val) & 0xAAAAAAAA;
@@ -297,29 +300,31 @@ fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
     (addr, val)
 }
 
-fn read_bit_string(ctrl: &mut [u32; 4], length: u8) -> u32 {
-    let mut tmp: u32 = ctrl[0] + (ctrl[1] << 2);
+fn read_bit_string(input: &Vec<u32>, ctrl: &mut [u32; 3], length: u8) -> u32 {
+    // Emulate C raw pointer increment logic
+    let mut tmp: u32 = magic::emulate_pointer_increment(input, ctrl[0] << 2);
+
     let mut output: u32 = 0;
 
-    for _ in length..0 {
-        if ctrl[2] > 31 {
-            ctrl[2] = 0;
-            ctrl[1] += 1;
-            tmp = ctrl[0] + (ctrl[1] << 2);
+    for _ in 0..length {
+        if ctrl[1] > 31 {
+            ctrl[1] = 0;
+            ctrl[0] += 1;
+            tmp = magic::emulate_pointer_increment(input, ctrl[0] << 2);
         }
-        if ctrl[1] >= ctrl[3] {
+        if ctrl[0] >= ctrl[2] {
             panic!("Error getting bitstring of length {}", length);
         }
-        output = ((output << 1) | ((tmp >> (31 - ctrl[2])) & 1));
-        ctrl[2] += 1;
+        output = ((output << 1) | ((tmp >> (31 - ctrl[1])) & 1));
+        ctrl[1] += 1;
     }
 
     output
 }
 
 // Original sources: armax.c:rotate_left() & armax.c:rotate_right()
-fn rotate_left(input: u32, rot: u8) -> u32 { (input << rot) | (input >> (32 - rot)) }
-fn rotate_right(input: u32, rot: u8) -> u32 { (input >> rot) | (input << (32 - rot)) }
+pub fn rotate_left(input: u32, rot: u8) -> u32 { (input << rot) | (input >> (32 - rot)) }
+pub fn rotate_right(input: u32, rot: u8) -> u32 { (input >> rot) | (input << (32 - rot)) }
 
 // Original source: armax.c:byteswap()
 // Shuffle bytes around
