@@ -1,4 +1,6 @@
 use crate::armax::table;
+use crate::armax::{rotate_left, rotate_right, swap_bytes};
+use crate::ar2;
 use crate::cheat::Cheat;
 use crate::game::Game;
 use crate::magic;
@@ -220,14 +222,13 @@ pub fn whole_game(game: Game, input: &Vec<u32>, seeds: &[u32; 32]) -> Game {
 }*/
 
 // Equivalent to armax.c:batchdecrypt() + armax.c:armBatchDecryptFull()
-pub fn decrypt_cheat(input: Cheat, seeds: &[u32; 32]) -> Cheat {
-
+pub fn decrypt_cheat(input: Cheat, armax_seeds: &[u32; 32], ar2_seeds: &[u8; 4]) -> Cheat {
     // Decrypt address/value pairs from pairs of u32 codes
     let mut out_codes: Vec<u32> = vec!();
     let mut in_codes = input.codes.iter();
     while let (Some(in_addr), Some(in_val)) = (in_codes.next(), in_codes.next())
     {
-        let (out_addr, out_val) = decrypt_pair((*in_addr, *in_val), seeds);
+        let (out_addr, out_val) = decrypt_pair((*in_addr, *in_val), armax_seeds);
         out_codes.push(out_addr);
         out_codes.push(out_val);
     }
@@ -248,11 +249,23 @@ pub fn decrypt_cheat(input: Cheat, seeds: &[u32; 32]) -> Cheat {
         let real_code_count = out_codes.len() - verifier_code_count;
 
         if real_code_count > 0 {
-            for i in 0..real_code_count {
-                out_codes[i+verifier_code_count] = swap_bytes(out_codes[i+verifier_code_count]);
-            }
-        }
 
+            // Isolate non-verifier codes that still must be AR2 decrypted
+            let (max_codes, ar2_codes) = out_codes.split_at(verifier_code_count);
+
+            let mut ar2_codes = ar2_codes.to_vec();
+
+            for i in 0..real_code_count {
+                ar2_codes[i] = swap_bytes(ar2_codes[i]);
+            }
+
+            ar2_codes = ar2::decrypt::decrypt_cheat(ar2_codes, ar2_seeds);
+
+            // Combine decrypted ARMAX and AR2 codes
+            out_codes = max_codes.to_vec();
+            out_codes.append(&mut ar2_codes.to_vec());
+
+        }
 
         // Return our decrypted cheat
         decrypted.codes = out_codes;
@@ -395,8 +408,9 @@ fn read_cheat_meta(input: &Cheat, codes: &Vec<u32>) -> Cheat {
 // Original source: armax.c:armReadVerifier()
 // Read verifier bit string from a decrypted cheat and return the number of code lines it occupies
 fn read_verifier_length(input: &Vec<u32>) -> i16 {
+    // TODO: [oddity] Is lines=1 an off-by-one in the original code? It's definitely required.
     // Output line count
-    let mut lines: i16 = 0;
+    let mut lines: i16 = 1;
 
     // Bit counter
     let mut bits_read = 0;
@@ -475,13 +489,3 @@ fn read_bit_string(input: &Vec<u32>, ctrl: &mut [u32; 3], length: u8) -> u32 {
 
     output
 }
-
-// Original sources: armax.c:rotate_left() & armax.c:rotate_right()
-// Rotate bytes left
-pub fn rotate_left(input: u32, rot: u8) -> u32 { (input << rot) | (input >> (32 - rot)) }
-// Rotate bytes right
-pub fn rotate_right(input: u32, rot: u8) -> u32 { (input >> rot) | (input << (32 - rot)) }
-
-// Original source: armax.c:byteswap()
-// Shuffle bytes around
-pub fn swap_bytes(input: u32) -> u32 { (input << 24) | ((input << 8) & 0x00FF0000) | ((input >> 8) & 0x0000FF00) | (input >> 24) }

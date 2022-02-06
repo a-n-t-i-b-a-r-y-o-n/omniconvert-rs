@@ -7,6 +7,16 @@ pub fn subtract_from_zero(input: u32) -> u32 {
     (u32::MAX as u64 + 1u64 - input as u64) as u32
 }
 
+// Emulate C u32 inversion with ~ symbol
+pub fn invert(input: u32) -> u32 {
+    (u32::MAX as u64 - input as u64) as u32
+}
+
+// Emulate C u8 add with overflow
+pub fn add_u8_overflow(a: u8, b: u8) -> u8 {
+    (a as u16 + b as u16) as u8
+}
+
 // Emulate C raw pointer increment logic to carve up input
 pub fn u32_pointer_increment(input: &Vec<u32>, offset: u32) -> u32 {
     // Start index to read at
@@ -22,6 +32,7 @@ pub fn u32_pointer_increment(input: &Vec<u32>, offset: u32) -> u32 {
             // This will require adding (4-r) bytes of u32 #1 to r bytes of u32 #2
             // All the (r*2) operations are to account for the hex notation
 
+            // TODO: Research how raw u32 pointer increment even works!
             // Mask for 1st u32
             let a = (input[base] & (0xFFFFFFFF >> (r*2))) << (r*2);
             // Mask for 2nd u32

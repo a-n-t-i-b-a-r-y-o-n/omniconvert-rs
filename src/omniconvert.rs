@@ -3,6 +3,7 @@ use crate::game::{Game, Region};
 use crate::cheat::{Cheat, CheatStates};
 use crate::token::{Token, TokenType};
 use crate::armax;
+use crate::ar2;
 
 // Which mode is represented by a given operation/options
 pub enum CryptMode {
@@ -33,6 +34,8 @@ pub struct State {
     armax_verifier:   armax::VerifierMode,
     // ARMAX Seeds
     pub armax_seeds: [u32; 32],
+    // AR2 seeds
+    pub ar2_seeds: [u8; 4],
     // Game region
     region:     Region,
 }
@@ -57,6 +60,7 @@ impl State {
             parser: ParserType::Simple,
             armax_verifier: armax::VerifierMode::Auto,
             armax_seeds: armax::seeds::generate(),
+            ar2_seeds: ar2::seeds::generate(),
             region: Region::Unknown,
         }
     }
@@ -337,7 +341,7 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
 
 /*
 // TODO: The following is left for historical reasons, since its structure closely matches the original
-//       Please refer to the library tests for an updated decryption example, minus several to-do items.
+//       Please refer to the library armax_tests for an updated decryption example, minus several to-do items.
 fn decrypt_and_translate(state: &State, game: &mut Game) -> Game {
     // Clone output to return
     let mut output: Game = game.clone();
