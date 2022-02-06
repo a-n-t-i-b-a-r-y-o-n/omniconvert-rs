@@ -15,9 +15,6 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
     // Built octet count
     let mut octet_count = 0;
 
-    // Parity flag
-    let mut parity: u8 = 0;
-
     let alphabet = vec!(
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
         'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K',
@@ -104,14 +101,14 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
         // Increment built octet count
         octet_count+=1;
 
-        // Calculate parity bit
-        parity = 0;
+        // Calculate parity
+        let mut parity: u8 = 0;
         for i in 0..64 {
             if i < 32 {
                 parity ^= (octet1 >> (i-(0<<5))) as u8;
             }
             else {
-                parity ^= (octet1 >> (i-(1<<5))) as u8;
+                parity ^= (octet2 >> (i-(1<<5))) as u8;
             }
         }
 
@@ -130,13 +127,10 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                     }
                     Some(match_index) => {
                         if parity&1 != ((match_index as u8)&1) {
-                            // Parity check passed! Add octets to output list
-                            output.push((octet1, octet2));
+                            panic!("[!] Parity bit validation failed! Octets: {:08X} / {:08X}", octet1, octet2);
                         }
                         else {
-                            println!("[!] Parity bit validation failed! Octets: {:08X} / {:08X}", octet1, octet2);
-                            // TODO: Fix parity calculations
-                            // Push anyway
+                            // Parity check passed! Add octets to output list
                             output.push((octet1, octet2));
                         }
                     }
@@ -224,84 +218,66 @@ pub fn whole_game(game: Game, input: &Vec<u32>, seeds: &[u32; 32]) -> Game {
 
 }*/
 
-// TODO: Update the game info through this function
-// Decrypt a whole game's cheats
-pub fn whole_game(game: Game, seeds: &[u32; 32]) -> Game {
-    // Clone input to modify and return. Empty cheat list.
-    let mut output: Game = game.clone();
-    output.cheats = vec!();
-    // Iterate through input Game's cheats
-    for mut in_cheat in game.cheats {
-        // Clone input cheat properties and empty code list
-        let mut out_cheat = in_cheat.clone();
-        out_cheat.codes = vec!();
-        // Decrypt each code for this input cheat
-        out_cheat.codes = decrypt_codes(&in_cheat.codes, seeds);
-        // Push output cheat to output game's cheat list
-        output.cheats.push(out_cheat);
-    }
+pub fn decrypt_cheat(input: Cheat, seeds: &[u32; 32]) -> Cheat {
 
-    output
-}
-
-pub fn decrypt_codes(input: &Vec<u32>, seeds: &[u32; 32]) -> Vec<u32> {
-    let mut output: Vec<u32> = vec!();
-
-    // Decrypt address/value pairs from pairs of codes
-    let mut codes = input.iter();
-    while let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
+    // Decrypt address/value pairs from pairs of u32 codes
+    let mut out_codes: Vec<u32> = vec!();
+    let mut in_codes = input.codes.iter();
+    while let (Some(in_addr), Some(in_val)) = (in_codes.next(), in_codes.next())
+    {
         let (out_addr, out_val) = decrypt_pair((*in_addr, *in_val), seeds);
-        output.push(out_addr);
-        output.push(out_val);
+        out_codes.push(out_addr);
+        out_codes.push(out_val);
     }
     // TODO: Check for trailing address/value?
 
-    // Read game metadata
-    if output.len() > 0 {
-        // Key for bit string operations
-        let mut key: [u32; 3] = [
-            0u32,
-            4u32,   // TODO: [oddity] Original source comment just says "skip crc"
-            input.len() as u32,
-        ];
+    if out_codes.len() > 0 {
 
-        // TODO: Apply game metadata properties to Game object
-        // WARNING: READING PERMUTES THE KEY ARRAY  -   ORDER MATTERS!
-        let game_id = read_bit_string(&output, &mut key, 13);
-        let code_id = read_bit_string(&output, &mut key, 19);
-        let master_code = read_bit_string(&output, &mut key, 1);
-        let unknown = read_bit_string(&output, &mut key, 1);
-        let region = read_bit_string(&output, &mut key, 2);
+        let mut decrypted = read_cheat_meta(&input, &out_codes);
 
-        println!("[+] Properties:");
-        println!("\tGame ID: {:04X}", game_id);
-        println!("\tCode ID: {:08X}", code_id);
-        println!("\tEnable Code: {}", master_code);
-        println!("\tUnknown: {}", unknown);
-        println!("\tRegion: {}", region);
+        // TODO: Verify the output codes with CRC16
+        let check = out_codes[0];
+        out_codes[0] &= 0x0FFFFFFF;
+        decrypted.codes = out_codes;
 
-        // TODO: Verify the code with CRC16
-        let check = output[0];
-        output[0] &= 0x0FFFFFFF;
-
+        // Return our decrypted cheat
+        decrypted
     }
     else {
         // TODO: Handle errors more elegantly
         panic!("[!] No ARMAX cheats decrypted");
+        // We didn't decrypt anything - return the original cheat
+        input
     }
+}
 
+// Read metadata from a decrypted cheat
+fn read_cheat_meta(input: &Cheat, codes: &Vec<u32>) -> Cheat {
+    let mut output = input.clone();
+
+    // Key for bit string operations
+    let mut key: [u32; 3] = [
+        0u32,
+        4u32,   // TODO: [oddity] Original source comment just says "skip crc"
+        input.codes.len() as u32,
+    ];
+
+    // WARNING: READING PERMUTES THE KEY ARRAY  -   ORDER MATTERS!
+    output.game_id = read_bit_string(&codes, &mut key, 13);
+    output.id = read_bit_string(&codes, &mut key, 19);
+    output.enable_code = read_bit_string(&codes, &mut key, 1) == 1;
+    let _unknown= read_bit_string(&codes, &mut key, 1) == 1;
+    output.region = read_bit_string(&codes, &mut key, 2) as u8;
     output
 }
 
 // Decrypt a pair of ARMAX octets
 pub fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
-    // Byte swap 1/2
-    // armax.c:getcode()
+    // Byte swap 1/2    |   armax.c:getcode()
     let mut addr = swap_bytes(input.0);
     let mut val = swap_bytes(input.1);
 
-    // Unscramble 1/2
-    // armax.c:unscramble1()
+    // Unscramble 1/2   |   armax.c:unscramble1()
     let unscrambled = unscramble_1(addr, val);
     addr = unscrambled.0;
     val = unscrambled.1;
@@ -322,18 +298,19 @@ pub fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
         val ^= octet_mask(tmp, tmp2);
     }
 
-    // Unscramble 2/2
-    // armax.c:unscramble2()
+    // Unscramble 2/2   |   armax.c:unscramble2()
     let unscrambled = unscramble_2(addr, val);
     addr = unscrambled.0;
     val = unscrambled.1;
 
-    // Byte swap 2/2
-    // Note that this also swaps the address and value
-    let tmp_addr = addr;
-    let tmp_val = val;
-    addr = swap_bytes(tmp_val);
-    val = swap_bytes(tmp_addr);
+    // Byte swap 2/2    |   armax.c:setcode()
+    addr = swap_bytes(addr);
+    val = swap_bytes(val);
+
+    // Swap address and value
+    let tmp = addr;
+    addr = val;
+    val = tmp;
 
     (addr, val)
 }
@@ -399,16 +376,15 @@ pub fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
 }
 
 fn read_bit_string(input: &Vec<u32>, ctrl: &mut [u32; 3], length: u8) -> u32 {
-    // Emulate C raw pointer increment logic
-    let mut tmp: u32 = magic::emulate_pointer_increment(input, ctrl[0] << 2);
 
     let mut output: u32 = 0;
+    let mut tmp: u32 = magic::u32_pointer_increment(input, ctrl[0] << 2);
 
     for _ in 0..length {
         if ctrl[1] > 31 {
             ctrl[1] = 0;
             ctrl[0] += 1;
-            tmp = magic::emulate_pointer_increment(input, ctrl[0] << 2);
+            tmp = magic::u32_pointer_increment(input, ctrl[0] << 2);
         }
         if ctrl[0] >= ctrl[2] {
             panic!("Error getting bitstring of length {}", length);

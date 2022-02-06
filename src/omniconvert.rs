@@ -83,6 +83,7 @@ pub fn read_input(input: &str, format: CodeFormat) -> Vec<Token> {
             // Iterate tokens on this line
             println!("[-] Iterating tokens...");
             for (i, t) in line.split_whitespace().enumerate() {
+                // TODO: Fix comment parsing (i.e. actually _do_ it)
                 // Ignore comment lines starting with '#'
                 if i == 0 && t.chars().nth(0) == Some('#') {
                     break;
@@ -334,6 +335,9 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
     output
 }
 
+/*
+// TODO: The following is left for historical reasons, since its structure closely matches the original
+//       Please refer to the library tests for an updated decryption example, minus several to-do items.
 fn decrypt_and_translate(state: &State, game: &mut Game) -> Game {
     // Clone output to return
     let mut output: Game = game.clone();
@@ -348,7 +352,7 @@ fn decrypt_and_translate(state: &State, game: &mut Game) -> Game {
         CodeFormat::AR1 => {}
         CodeFormat::AR2 => {}
         CodeFormat::ARMAX => {
-            output = armax::decrypt::whole_game(output, &state.armax_seeds);
+            output = armax::decrypt::decrypt_game(output, &state.armax_seeds);
         }
         CodeFormat::CB => {}
         CodeFormat::CB7 => {}
@@ -394,3 +398,4 @@ pub fn minimal_conversion() {
     // Decrypt and translate cheats
     decrypt_and_translate(&state, &mut game);
 }
+ */

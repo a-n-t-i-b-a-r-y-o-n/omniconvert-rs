@@ -8,7 +8,7 @@ pub fn subtract_from_zero(input: u32) -> u32 {
 }
 
 // Emulate C raw pointer increment logic to carve up input
-pub fn emulate_pointer_increment(input: &Vec<u32>, offset: u32) -> u32 {
+pub fn u32_pointer_increment(input: &Vec<u32>, offset: u32) -> u32 {
     // Start index to read at
     let base = (offset/4) as usize;
     match offset % 4 {
