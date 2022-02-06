@@ -1,5 +1,5 @@
 use crate::formats::{CodeDevice, CodeFormat, CodeType, get_formats};
-use crate::game::Game;
+use crate::game::{Game, Region};
 use crate::cheat::{Cheat, CheatStates};
 use crate::token::{Token, TokenType};
 use crate::armax;
@@ -8,13 +8,6 @@ use crate::armax;
 pub enum CryptMode {
     Input,
     Output,
-}
-
-// Game regions
-enum Region {
-    USA,
-    PAL,
-    Japan,
 }
 
 // Parsing method
@@ -64,7 +57,7 @@ impl State {
             parser: ParserType::Simple,
             armax_verifier: armax::VerifierMode::Auto,
             armax_seeds: armax::seeds::generate(),
-            region: Region::USA
+            region: Region::Unknown,
         }
     }
 }
@@ -341,7 +334,9 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
     output
 }
 
-fn decrypt_and_translate(state: &State, game: &mut Game) {
+fn decrypt_and_translate(state: &State, game: &mut Game) -> Game {
+    // Clone output to return
+    let mut output: Game = game.clone();
     // TODO: Make an ARMAX disc hash if we're using ARMAX output w/ auto verifier
     if state.outcrypt.code.device == CodeDevice::ARMAX && state.armax_verifier == armax::VerifierMode::Auto {
         panic!("[!] ARMAX disc hashes not implemented yet");
@@ -349,25 +344,23 @@ fn decrypt_and_translate(state: &State, game: &mut Game) {
 
     // TODO: Reset CB devices for input mode
 
-    for mut cheat in game.cheats.clone() {
-        // Decrypt the code
-        // TODO: This must become more efficient as part of the Great Refactoring
-        match state.incrypt.code.format {
-            CodeFormat::AR1 => {}
-            CodeFormat::AR2 => {}
-            CodeFormat::ARMAX => {
-                cheat.codes = armax::decrypt::batch(&mut cheat.codes, &state.armax_seeds);
-            }
-            CodeFormat::CB => {}
-            CodeFormat::CB7 => {}
-            CodeFormat::GS3 => {}
-            CodeFormat::GS5 => {}
-            CodeFormat::MAXRAW => {}
-            CodeFormat::RAW => {}
+    match state.incrypt.code.format {
+        CodeFormat::AR1 => {}
+        CodeFormat::AR2 => {}
+        CodeFormat::ARMAX => {
+            output = armax::decrypt::whole_game(output, &state.armax_seeds);
         }
+        CodeFormat::CB => {}
+        CodeFormat::CB7 => {}
+        CodeFormat::GS3 => {}
+        CodeFormat::GS5 => {}
+        CodeFormat::MAXRAW => {}
+        CodeFormat::RAW => {}
     }
 
     // TODO: Reset CB devices for output mode
+
+    output
 }
 
 // Minimum requirements to perform code conversion

@@ -1,5 +1,6 @@
-use crate::cheat::Cheat;
 use crate::armax::table;
+use crate::cheat::Cheat;
+use crate::game::Game;
 use crate::magic;
 
 // TODO: Translate alpha_to_octets() from alphatobin() less literally
@@ -134,6 +135,7 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                         }
                         else {
                             println!("[!] Parity bit validation failed! Octets: {:08X} / {:08X}", octet1, octet2);
+                            // TODO: Fix parity calculations
                             // Push anyway
                             output.push((octet1, octet2));
                         }
@@ -149,7 +151,100 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
     Some(output)
 }
 
-pub fn batch(input: &mut Vec<u32>, seeds: &[u32; 32]) -> Vec<u32> {
+/*
+pub fn whole_game(game: Game, input: &Vec<u32>, seeds: &[u32; 32]) -> Game {
+
+    let mut output: Game = game.clone();
+
+    for mut cheat in game.cheats {
+
+        let mut output_codes: Vec<u32> = vec!();
+
+        // Decrypt address/value pairs from pairs of codes
+        let mut codes = cheat.codes.iter();
+        while let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
+            let (out_addr, out_val) = decrypt_pair((*in_addr, *in_val), seeds);
+            output_codes.push(out_addr);
+            output_codes.push(out_val);
+        }
+        // TODO: Check for trailing address/value?
+
+        // Read game metadata
+        if output_codes.len() > 0 {
+            let mut tmp: [u32; 3] = [0u32; 3];
+            tmp[0] = 0u32;
+            tmp[1] = 4u32;  // TODO: [oddity] Original source comment just says "skip crc"
+            tmp[2] = input.len() as u32;
+
+            // TODO: Apply game metadata properties to Game object
+            let game_id = read_bit_string(&output_codes, &mut tmp, 13);
+            let code_id = read_bit_string(&output_codes, &mut tmp, 19);
+            let enable_code = read_bit_string(&output_codes, &mut tmp, 1) == 1;
+            let unknown = read_bit_string(&output_codes, &mut tmp, 1) == 1;
+            let region = read_bit_string(&output_codes, &mut tmp, 2) as Region;
+
+            println!("[+] Properties:");
+            println!("\tGame ID: {:04X}", game_id);
+            println!("\tCode ID: {:08X}", code_id);
+            println!("\tEnable Code: {}", enable_code);
+            println!("\tUnknown: {}", unknown);
+            println!("\tRegion: {:?}", region);
+
+            // TODO: Verify the code with CRC16
+            let check = output_codes[0];
+            output_codes[0] &= 0x0FFFFFFF;
+
+            // Update game metadata
+            output.id = game_id;
+            output.region = region;
+
+            // Add to output cheat list
+            let mut output_cheat = Cheat {
+                id: code_id,
+                name: if enable_code { String::from("Enable Code") } else { String::from("???") },
+                comment: "".to_string(),
+                flags: [0u8; 3],
+                codes: output_codes,
+                state: CheatStates::Decrypted
+            };
+
+            output.cheats.push(output_cheat);
+
+        }
+        else {
+            // TODO: Handle errors more elegantly
+            panic!("[!] No ARMAX cheats decrypted");
+        }
+
+
+
+    }
+
+    output
+
+}*/
+
+// TODO: Update the game info through this function
+// Decrypt a whole game's cheats
+pub fn whole_game(game: Game, seeds: &[u32; 32]) -> Game {
+    // Clone input to modify and return. Empty cheat list.
+    let mut output: Game = game.clone();
+    output.cheats = vec!();
+    // Iterate through input Game's cheats
+    for mut in_cheat in game.cheats {
+        // Clone input cheat properties and empty code list
+        let mut out_cheat = in_cheat.clone();
+        out_cheat.codes = vec!();
+        // Decrypt each code for this input cheat
+        out_cheat.codes = decrypt_codes(&in_cheat.codes, seeds);
+        // Push output cheat to output game's cheat list
+        output.cheats.push(out_cheat);
+    }
+
+    output
+}
+
+pub fn decrypt_codes(input: &Vec<u32>, seeds: &[u32; 32]) -> Vec<u32> {
     let mut output: Vec<u32> = vec!();
 
     // Decrypt address/value pairs from pairs of codes
@@ -163,17 +258,20 @@ pub fn batch(input: &mut Vec<u32>, seeds: &[u32; 32]) -> Vec<u32> {
 
     // Read game metadata
     if output.len() > 0 {
-        let mut tmp: [u32; 3] = [0u32; 3];
-        tmp[0] = 0u32;
-        tmp[1] = 4u32;  // TODO: [oddity] Original source comment just says "skip crc"
-        tmp[2] = input.len() as u32;
+        // Key for bit string operations
+        let mut key: [u32; 3] = [
+            0u32,
+            4u32,   // TODO: [oddity] Original source comment just says "skip crc"
+            input.len() as u32,
+        ];
 
         // TODO: Apply game metadata properties to Game object
-        let game_id = read_bit_string(&output, &mut tmp, 13);
-        let code_id = read_bit_string(&output, &mut tmp, 19);
-        let master_code = read_bit_string(&output, &mut tmp, 1);
-        let unknown = read_bit_string(&output, &mut tmp, 1);
-        let region = read_bit_string(&output, &mut tmp, 2);
+        // WARNING: READING PERMUTES THE KEY ARRAY  -   ORDER MATTERS!
+        let game_id = read_bit_string(&output, &mut key, 13);
+        let code_id = read_bit_string(&output, &mut key, 19);
+        let master_code = read_bit_string(&output, &mut key, 1);
+        let unknown = read_bit_string(&output, &mut key, 1);
+        let region = read_bit_string(&output, &mut key, 2);
 
         println!("[+] Properties:");
         println!("\tGame ID: {:04X}", game_id);
