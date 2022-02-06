@@ -2,7 +2,6 @@ use crate::armax::table;
 use crate::armax::{rotate_left, rotate_right, swap_bytes};
 use crate::ar2;
 use crate::cheat::Cheat;
-use crate::game::Game;
 use crate::magic;
 
 // TODO: Translate alpha_to_octets() from alphatobin() less literally
@@ -38,7 +37,6 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                 None => {
                     // TODO: Handle parsing errors gracefully
                     panic!("[!] Unable to get character at {} from input of length {}", index, input[octet_count>>1].len());
-                    return None
                 }
                 Some(char_in) => {
                     // Get index of input char in cipher alphabet
@@ -46,7 +44,6 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                         None => {
                             // TODO: Handle parsing error gracefully
                             panic!("[!] Received non-alphanumeric character \"{}\" in ARMAX code at index {}", char_in, index);
-                            return None
                         }
                         Some(match_index) => {
                             // OR octet w/ index of input char in alphabet string,
@@ -75,7 +72,6 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                 None => {
                     // TODO: Handle parsing errors gracefully
                     panic!("[!] Unable to get character at {} from input of length {}", index+6, input[octet_count>>1].len());
-                    return None
                 }
                 Some(char_in) => {
                     // Get index of input char in cipher alphabet
@@ -83,7 +79,6 @@ pub fn alpha_to_octets(input: Vec<&str>) -> Option<Vec<(u32, u32)>> {
                         None => {
                             // TODO: Handle parsing error gracefully
                             panic!("[!] Received non-alphanumeric character \"{}\" in ARMAX code at index {}", char_in, index+6);
-                            return None
                         }
                         Some(match_index) => {
                             // OR octet w/ index of input char in alphabet string,
@@ -225,46 +220,50 @@ pub fn whole_game(game: Game, input: &Vec<u32>, seeds: &[u32; 32]) -> Game {
 pub fn decrypt_cheat(input: Cheat, armax_seeds: &[u32; 32], ar2_seeds: &[u8; 4]) -> Cheat {
     // Decrypt address/value pairs from pairs of u32 codes
     let mut out_codes: Vec<u32> = vec!();
-    let mut in_codes = input.codes.iter();
-    while let (Some(in_addr), Some(in_val)) = (in_codes.next(), in_codes.next())
-    {
-        let (out_addr, out_val) = decrypt_pair((*in_addr, *in_val), armax_seeds);
-        out_codes.push(out_addr);
-        out_codes.push(out_val);
+
+    // Decrypt each pair
+    for i in (0..input.codes.len()).step_by(2) {
+        let (addr, val) = decrypt_pair((input.codes[i], input.codes[i+1]), armax_seeds);
+        out_codes.push(addr);
+        out_codes.push(val);
     }
     // TODO: Check for trailing address/value?
 
     if out_codes.len() > 0 {
 
+        // Read cheat metadata and update output cheat
         let mut decrypted = read_cheat_meta(&input, &out_codes);
 
         // TODO: Verify the output codes with CRC16
-        let check = out_codes[0];
+
+        // Apply mask to 1st code
         out_codes[0] &= 0x0FFFFFFF;
 
-        // Determine ARMAX verifier code count given 2 codes per line
+        // Determine ARMAX verifier code count (given two u32 code octets per line)
         let verifier_code_count = (read_verifier_length(&out_codes) as usize) * 2;
 
-        // Determine non-verifier ARMAX code count
-        let real_code_count = out_codes.len() - verifier_code_count;
+        // Determine non-ARMAX-verifier (i.e. AR2) code count
+        let ar2_code_count = out_codes.len() - verifier_code_count;
 
-        if real_code_count > 0 {
+        if ar2_code_count > 0 {
 
-            // Isolate non-verifier codes that still must be AR2 decrypted
+            // Separate MAX verifier codes from AR2 non-verifier codes that still require AR2 decryption
             let (max_codes, ar2_codes) = out_codes.split_at(verifier_code_count);
 
+            // Clone AR2 codes to mutable vector
             let mut ar2_codes = ar2_codes.to_vec();
 
-            for i in 0..real_code_count {
+            // Swap bytes of AR2 codes
+            for i in 0..ar2_code_count {
                 ar2_codes[i] = swap_bytes(ar2_codes[i]);
             }
 
+            // Decrypt all AR2 codes
             ar2_codes = ar2::decrypt::decrypt_cheat(ar2_codes, ar2_seeds);
 
-            // Combine decrypted ARMAX and AR2 codes
+            // Re-combine decrypted ARMAX codes and newly-decrypted AR2 codes
             out_codes = max_codes.to_vec();
             out_codes.append(&mut ar2_codes.to_vec());
-
         }
 
         // Return our decrypted cheat
@@ -274,8 +273,6 @@ pub fn decrypt_cheat(input: Cheat, armax_seeds: &[u32; 32], ar2_seeds: &[u8; 4])
     else {
         // TODO: Handle errors more elegantly
         panic!("[!] No ARMAX cheats decrypted");
-        // We didn't decrypt anything - return the original cheat
-        input
     }
 }
 
@@ -291,18 +288,13 @@ pub fn decrypt_pair(input: (u32, u32), seeds: &[u32; 32]) -> (u32, u32) {
     val = unscrambled.1;
 
     // Apply seeds
-    let mut range = (0..32).into_iter();
-    while let (
-        // Seed indexes
-        Some(seed_a), Some(seed_b), Some(seed_c), Some(seed_d)
-    ) = (range.next(), range.next(), range.next(), range.next()) {
-
-        let mut tmp = rotate_right(val, 4) ^ seeds[seed_a];
-        let mut tmp2 = val ^ seeds[seed_b];
+    for i in (0..32).step_by(4) {
+        let mut tmp = rotate_right(val, 4) ^ seeds[i];
+        let mut tmp2 = val ^ seeds[i+1];
         addr ^= octet_mask(tmp, tmp2);
 
-        tmp = rotate_right(addr,4) ^ seeds[seed_c];
-        tmp2 = addr ^ seeds[seed_d];
+        tmp = rotate_right(addr,4) ^ seeds[i+2];
+        tmp2 = addr ^ seeds[i+3];
         val ^= octet_mask(tmp, tmp2);
     }
 
@@ -335,24 +327,24 @@ pub fn octet_mask(i1: u32, i2: u32) -> u32 {
 pub fn unscramble_1(mut addr: u32, mut val: u32) -> (u32, u32) {
     val = rotate_left(val, 4);
 
-    let mut tmp: u32 = ((addr ^ val) & 0xF0F0F0F0);
+    let mut tmp: u32 = (addr ^ val) & 0xF0F0F0F0;
     addr ^= tmp;
-    val = rotate_right((val ^ tmp), 20);
+    val = rotate_right(val ^ tmp, 20);
 
-    tmp = ((addr ^ val) & 0xFFFF0000);
+    tmp = (addr ^ val) & 0xFFFF0000;
     addr ^= tmp;
-    val = rotate_right((val ^ tmp),18);
+    val = rotate_right(val ^ tmp,18);
 
-    tmp = ((addr ^ val) & 0x33333333);
+    tmp = (addr ^ val) & 0x33333333;
     addr ^= tmp;
-    val = rotate_right((val ^ tmp),6);
+    val = rotate_right(val ^ tmp,6);
 
-    tmp = ((addr ^ val) & 0x00FF00FF);
+    tmp = (addr ^ val) & 0x00FF00FF;
     addr ^= tmp;
-    val = rotate_left((val ^ tmp),9);
+    val = rotate_left(val ^ tmp,9);
 
-    tmp = ((addr ^ val) & 0xAAAAAAAA);
-    addr = rotate_left((addr ^ tmp),1);
+    tmp = (addr ^ val) & 0xAAAAAAAA;
+    addr = rotate_left(addr ^ tmp,1);
     val ^= tmp;
 
     (addr, val)
@@ -363,23 +355,23 @@ pub fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
 
     let mut tmp: u32 = (addr ^ val) & 0xAAAAAAAA;
     val ^= tmp;
-    addr = rotate_right((addr ^ tmp),9);
+    addr = rotate_right(addr ^ tmp,9);
 
     tmp = (addr ^ val) & 0x00FF00FF;
     val ^= tmp;
-    addr = rotate_left((addr ^ tmp),6);
+    addr = rotate_left(addr ^ tmp,6);
 
     tmp = (addr ^ val) & 0x33333333;
     val ^= tmp;
-    addr = rotate_left((addr ^ tmp),18);
+    addr = rotate_left(addr ^ tmp,18);
 
     tmp = (addr ^ val) & 0xFFFF0000;
     val ^= tmp;
-    addr = rotate_left((addr ^ tmp),20);
+    addr = rotate_left(addr ^ tmp,20);
 
     tmp = (addr ^ val) & 0xF0F0F0F0;
     val ^= tmp;
-    addr = rotate_right((addr ^ tmp),4);
+    addr = rotate_right(addr ^ tmp,4);
 
     (addr, val)
 }
@@ -443,8 +435,8 @@ fn read_verifier_length(input: &Vec<u32>) -> i16 {
         let exp_index = read_bit_string(input, &mut key, 3) as usize;
         bits_read += 3;
 
-        // Get expansion data
-        let exp_data = read_bit_string(input, &mut key, exp_sizes[exp_index]);
+        // Get expansion data (unused)
+        let _ = read_bit_string(input, &mut key, exp_sizes[exp_index]);
         bits_read += exp_sizes[exp_index];
 
         // Get next verifier terminator
@@ -483,7 +475,7 @@ fn read_bit_string(input: &Vec<u32>, ctrl: &mut [u32; 3], length: u8) -> u32 {
             // TODO: Allow indicating error here instead of just panicking
             panic!("Error getting bitstring of length {}", length);
         }
-        output = ((output << 1) | ((tmp >> (31 - ctrl[1])) & 1));
+        output = (output << 1) | ((tmp >> (31 - ctrl[1])) & 1);
         ctrl[1] += 1;
     }
 

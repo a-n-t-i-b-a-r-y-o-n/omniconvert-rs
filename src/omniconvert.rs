@@ -1,5 +1,5 @@
-use crate::formats::{CodeDevice, CodeFormat, CodeType, get_formats};
-use crate::game::{Game, Region};
+use crate::formats::{CodeFormat, CodeType, FORMATS};
+use crate::game::{Region};
 use crate::cheat::{Cheat, CheatStates};
 use crate::token::{Token, TokenType};
 use crate::armax;
@@ -43,19 +43,17 @@ pub struct State {
 impl State {
     // Initialize the default environment
     pub fn new() -> Self {
-        // Get list of supported formats
-        let mut formats = get_formats();
         // Return default State object
         State {
             // Default to ARMAX input
             incrypt: CryptOpt {
                 mode: CryptMode::Input,
-                code: formats[8].clone(),
+                code: FORMATS[8].clone(),
             },
             // Default to RAW output
             outcrypt: CryptOpt {
                 mode: CryptMode::Output,
-                code: formats[0].clone(),
+                code: FORMATS[0].clone(),
             },
             parser: ParserType::Simple,
             armax_verifier: armax::VerifierMode::Auto,
@@ -149,12 +147,12 @@ pub fn read_input(input: &str, format: CodeFormat) -> Vec<Token> {
 
     // Clean up input and delineate individual cheats
     println!("[-] Cleaning up input");
-    for (i, t) in output.iter_mut().enumerate() {
+    for t in output.iter_mut() {
         // Consider all remaining raw hex octets to actually be strings
         if t.types.first() == Some(&TokenType::HexOctet) {
             t.types[0] = TokenType::String;
         }
-        // TODO: Should we identify 'EndCode' tokens the same was as the original code?
+        // TODO: Should we identify 'EndCode' tokens the same way as the original code?
         // It's currently done as part of reading an empty line.
 
     }
@@ -188,7 +186,7 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
     let mut tokens = token_list.iter();
     loop {
         // Get the next token or None if we're at the end
-        let mut next = tokens.next();
+        let next = tokens.next();
         if next == None {
             // We've reached the end. Stop looping.
             break;

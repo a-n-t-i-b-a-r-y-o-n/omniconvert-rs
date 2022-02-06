@@ -6,9 +6,9 @@ pub fn generate() -> [u32; 32] {
     // Output seeds
     let mut output: [u32; 32] = [0u32; 32];
                                                 // Here's what it looks like:
-    let mut iv : [u8; 56] = create_iv();        // <- Static IV
+    let iv      : [u8; 56] = create_iv();       // <- Static IV
     let mut rk  : [u8; 56] = [0u8; 56];         // <- Round key based on i
-    let mut seed: [u8; 8] = [0u8; 8];           // <- Obfuscated seed data
+    let mut seed: [u8; 8];                      // <- Obfuscated seed data
 
     for i in 0..16 {
         // Update round key table
@@ -18,12 +18,8 @@ pub fn generate() -> [u32; 32] {
         seed = pick_seeds(&rk);
 
         // Construct output u32 values from bytes
-        output[i << 1] = (
-            read_big_endian(seed[0], seed[2], seed[4], seed[6])
-        );
-        output[(i << 1) + 1] = (
-            read_big_endian(seed[1], seed[3], seed[5], seed[7])
-        );
+        output[i << 1] = read_big_endian(seed[0], seed[2], seed[4], seed[6]);
+        output[(i << 1) + 1] = read_big_endian(seed[1], seed[3], seed[5], seed[7]);
     }
 
     // Swap u32 pairs around
@@ -64,7 +60,7 @@ fn round_key(generator_index: usize, input: [u8; 56], sub_table: &[u8; 56]) -> [
     let mut output = input.clone();
 
     // Pick values from substitution table
-    let mut tmp: u8 = 0;
+    let mut tmp: u8;
     for i in 0..56 {
         tmp = gen+ i;
 

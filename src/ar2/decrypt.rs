@@ -115,9 +115,8 @@ pub fn decrypt_code(input: u32, in_ctrl: u8, seed: u8) -> u32 {
     }
 
     // Reconstruct output into u32
-    (((output[3] as u32) << 24) as u32 +
+    ((output[3] as u32) << 24) as u32 +
         ((output[2] as u32) << 16) as u32 +
         ((output[1] as u32) << 8) as u32 +
         output[0] as u32
-    )
 }

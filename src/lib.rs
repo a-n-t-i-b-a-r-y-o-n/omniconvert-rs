@@ -68,7 +68,7 @@ Save Anywhere
     #[test]
     fn armax_unscramble_1() {
         // Default state
-        let mut state: omniconvert::State = omniconvert::State::new();
+        let state: omniconvert::State = omniconvert::State::new();
 
         // Dummy game object
         let mut game: Game = Game::new();
@@ -85,8 +85,8 @@ Save Anywhere
         let mut codes = game.cheats[0].codes.iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
             // Swap bytes
-            let mut addr = armax::swap_bytes(*in_addr);
-            let mut val = armax::swap_bytes(*in_val);
+            let addr = armax::swap_bytes(*in_addr);
+            let val = armax::swap_bytes(*in_val);
             // Unscramble step 1
             let unscrambled = armax::decrypt::unscramble_1(addr, val);
 
@@ -103,7 +103,7 @@ Save Anywhere
     #[test]
     fn armax_apply_seeds() {
         // Default state
-        let mut state: omniconvert::State = omniconvert::State::new();
+        let state: omniconvert::State = omniconvert::State::new();
         let seeds = state.armax_seeds;
 
         // Dummy game object
@@ -132,18 +132,13 @@ Save Anywhere
             assert_eq!(unscrambled.1, 4190765348);
 
             // Apply seeds
-            let mut range = (0..32).into_iter();
-            while let (
-                // Seed indexes
-                Some(seed_a), Some(seed_b), Some(seed_c), Some(seed_d)
-            ) = (range.next(), range.next(), range.next(), range.next()) {
-
-                let mut tmp = armax::rotate_right(val, 4) ^ seeds[seed_a];
-                let mut tmp2 = val ^ seeds[seed_b];
+            for i in (0..32).step_by(4) {
+                let mut tmp = armax::rotate_right(val, 4) ^ seeds[i];
+                let mut tmp2 = val ^ seeds[i+1];
                 addr ^= armax::decrypt::octet_mask(tmp, tmp2);
 
-                tmp = armax::rotate_right(addr,4) ^ seeds[seed_c];
-                tmp2 = addr ^ seeds[seed_d];
+                tmp = armax::rotate_right(addr,4) ^ seeds[i+2];
+                tmp2 = addr ^ seeds[i+3];
                 val ^= armax::decrypt::octet_mask(tmp, tmp2);
             }
 
@@ -159,7 +154,7 @@ Save Anywhere
     #[test]
     fn armax_unscramble_2() {
         // Default state
-        let mut state: omniconvert::State = omniconvert::State::new();
+        let state: omniconvert::State = omniconvert::State::new();
         let seeds = state.armax_seeds;
 
         // Dummy game object
@@ -189,24 +184,15 @@ Save Anywhere
             assert_eq!(unscrambled.1, 4190765348);
 
             // Apply seeds
-            let mut range = (0..32).into_iter();
-            while let (
-                // Seed indexes
-                Some(seed_a), Some(seed_b), Some(seed_c), Some(seed_d)
-            ) = (range.next(), range.next(), range.next(), range.next()) {
-
-                let mut tmp = armax::rotate_right(val, 4) ^ seeds[seed_a];
-                let mut tmp2 = val ^ seeds[seed_b];
+            for i in (0..32).step_by(4) {
+                let mut tmp = armax::rotate_right(val, 4) ^ seeds[i];
+                let mut tmp2 = val ^ seeds[i+1];
                 addr ^= armax::decrypt::octet_mask(tmp, tmp2);
 
-                tmp = armax::rotate_right(addr,4) ^ seeds[seed_c];
-                tmp2 = addr ^ seeds[seed_d];
+                tmp = armax::rotate_right(addr,4) ^ seeds[i+2];
+                tmp2 = addr ^ seeds[i+3];
                 val ^= armax::decrypt::octet_mask(tmp, tmp2);
             }
-
-            // TEST: apply_seeds
-            assert_eq!(addr, 870574636);
-            assert_eq!(val, 3363966584);
 
             let unscrambled = armax::decrypt::unscramble_2(addr, val);
             addr = unscrambled.0;
@@ -225,7 +211,7 @@ Save Anywhere
     #[test]
     fn armax_decrypt_single_pair() {
         // Default state
-        let mut state: omniconvert::State = omniconvert::State::new();
+        let state: omniconvert::State = omniconvert::State::new();
         let seeds = &state.armax_seeds;
 
         // Dummy game object
@@ -262,7 +248,7 @@ Save Anywhere
     #[test]
     fn armax_decrypt_cheat() {
         // Default state
-        let mut state: omniconvert::State = omniconvert::State::new();
+        let state: omniconvert::State = omniconvert::State::new();
 
         // Tokenize input
         let tokens = omniconvert::read_input(TEST_CHEAT_SINGLE, state.incrypt.code.format);
@@ -297,7 +283,7 @@ Save Anywhere
     #[test]
     fn armax_decrypt_game() {
         // Default state
-        let mut state: omniconvert::State = omniconvert::State::new();
+        let state: omniconvert::State = omniconvert::State::new();
 
         // Dummy game object
         let mut game: Game = Game {
