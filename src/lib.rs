@@ -46,7 +46,8 @@ PMGE-KJ9D-X4WRN
 QJNC-EWMH-UQ48H
 
 Save Anywhere
-# Press Pause to access the menu
+# Press pause to access the
+# save menu from anywhere
 3QYW-CWCU-R0BCC
 3WQR-X7EE-ADTJA"#;
 
@@ -77,19 +78,13 @@ Save Anywhere
     // Part of decrypt_pair()
     #[test]
     fn armax_unscramble_1() {
-        // Default state
-        let state: omniconvert::State = omniconvert::State::new();
-
-        // Dummy game object
-        let mut game: Game = Game::new();
-
         // Read input cheats
-        game.cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
+        let mut cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
-        assert!(game.cheats.len() > 0);
+        assert!(cheats.len() > 0);
 
         // Get first code of first cheat
-        let mut codes = game.cheats[0].codes().unwrap().into_iter();
+        let mut codes = cheats[0].codes().unwrap().into_iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
             // Swap bytes
             let addr = armax::swap_bytes(in_addr);
@@ -109,20 +104,16 @@ Save Anywhere
     // Part of decrypt_pair()
     #[test]
     fn armax_apply_seeds() {
-        // Default state
-        let state: omniconvert::State = omniconvert::State::new();
-        let seeds = state.armax_seeds;
-
-        // Dummy game object
-        let mut game: Game = Game::new();
+        // Generate seeds
+        let seeds = omniconvert::Seeds::new().armax;
 
         // Read input cheats
-        game.cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
+        let mut cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
-        assert!(game.cheats.len() > 0);
+        assert!(cheats.len() > 0);
 
         // Get first code of first cheat
-        let mut codes = game.cheats[0].codes().unwrap().into_iter();
+        let mut codes = cheats[0].codes().unwrap().into_iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
             // Swap bytes
             let mut addr = armax::swap_bytes(in_addr);
@@ -157,20 +148,16 @@ Save Anywhere
     // Part of decrypt_pair()
     #[test]
     fn armax_unscramble_2() {
-        // Default state
-        let state: omniconvert::State = omniconvert::State::new();
-        let seeds = state.armax_seeds;
-
-        // Dummy game object
-        let mut game: Game = Game::new();
+        // Generate seeds
+        let seeds = omniconvert::Seeds::new().armax;
 
         // Read input cheats
-        game.cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
+        let mut cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
-        assert!(game.cheats.len() > 0);
+        assert!(cheats.len() > 0);
 
         // Get first code of first cheat
-        let mut codes = game.cheats[0].codes().unwrap().into_iter();
+        let mut codes = cheats[0].codes().unwrap().into_iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
             // Swap bytes
             let mut addr = armax::swap_bytes(in_addr);
@@ -211,22 +198,18 @@ Save Anywhere
     // Decrypt single ActionReplay MAX octet pair
     #[test]
     fn armax_decrypt_single_pair() {
-        // Default state
-        let state: omniconvert::State = omniconvert::State::new();
-        let seeds = &state.armax_seeds;
-
-        // Dummy game object
-        let mut game: Game = Game::new();
+        // Generate seeds
+        let seeds = omniconvert::Seeds::new().armax;
 
         // Read input cheats
-        game.cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
+        let mut cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
-        assert!(game.cheats.len() > 0);
+        assert!(cheats.len() > 0);
 
         // Decrypt
-        let mut codes = game.cheats[0].codes().unwrap().into_iter();
+        let mut codes = cheats[0].codes().unwrap().into_iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
-            let (out_addr, out_val) = armax::decrypt::decrypt_pair((in_addr, in_val), seeds);
+            let (out_addr, out_val) = armax::decrypt::decrypt_pair((in_addr, in_val), &seeds);
 
             assert_eq!(out_addr, 2169439932);
             assert_eq!(out_val, 678980011);
@@ -236,8 +219,8 @@ Save Anywhere
             assert!(false);
         }
 
-        assert!(game.cheats.len() > 0);
-        assert!(game.cheats[0].codes().unwrap().len() > 0);
+        assert!(cheats.len() > 0);
+        assert!(cheats[0].codes().unwrap().len() > 0);
 
 
     }
@@ -245,8 +228,8 @@ Save Anywhere
     // Decrypt single ActionReplay MAX cheat
     #[test]
     fn armax_decrypt_cheat() {
-        // Default state
-        let state: omniconvert::State = omniconvert::State::new();
+        // Generate seeds
+        let seeds: omniconvert::Seeds = omniconvert::Seeds::new();
 
         // Read input cheats
         let encrypted_cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
@@ -256,7 +239,7 @@ Save Anywhere
             .into_iter()
             .map(|cheat| {
                 let mut armax: ARMAXCheat = cheat.into();
-                armax.decrypt(&state.armax_seeds, &state.ar2_seeds);
+                armax.decrypt(&seeds.armax, &seeds.ar2);
                 armax
             })
             .collect();
@@ -279,8 +262,8 @@ Save Anywhere
     // Decrypt multiple ActionReplay MAX cheats
     #[test]
     fn armax_decrypt_game() {
-        // Default state
-        let state: omniconvert::State = omniconvert::State::new();
+        // Generate seeds
+        let seeds: omniconvert::Seeds = omniconvert::Seeds::new();
 
         // Dummy game object
         let mut game: Game = Game {
@@ -295,7 +278,7 @@ Save Anywhere
             .into_iter()
             .map(|cheat: UnknownCheat| {
                 let mut cheat: ARMAXCheat = cheat.into();
-                cheat.decrypt(&state.armax_seeds, &state.ar2_seeds);
+                cheat.decrypt(&seeds.armax, &seeds.ar2);
                 cheat
             })
             .collect();
@@ -310,23 +293,23 @@ Save Anywhere
         assert_eq!(cheats.len(), 3);
 
         // Cheat codes
-        assert_eq!(cheats[0].enable_code, true);           // Enable code flag
-        assert_eq!(cheats[0].name, "Enable Code");         // Cheat name
+        assert_eq!(cheats[0].enable_code, true);                // Enable code flag
+        assert_eq!(cheats[0].name, "Enable Code");              // Cheat name
         assert_eq!(                                             // Verifier
             cheats[0].codes.split_at(4).0,
             vec!(0x014F06BC, 0x287869AB, 0x74680000, 0x00000000)
         );
         assert_eq!(cheats[0].codes, vec!(0x014F06BC, 0x287869AB, 0x74680000, 0x00000000, 0xC411F668, 0x00000800, 0x0C0F0094, 0x00000001, 0xC4000000, 0x00010801));
-        assert_eq!(cheats[1].enable_code, false);          // Enable code flag
-        assert_eq!(cheats[1].name, "Have All Trinities");  // Cheat name
+        assert_eq!(cheats[1].enable_code, false);               // Enable code flag
+        assert_eq!(cheats[1].name, "Have All Trinities");       // Cheat name
         assert_eq!(                                             // Verifier
             cheats[1].codes.split_at(2).0,
             vec!(0x014F06BC, 0x50800000)
         );
         assert_eq!(cheats[1].codes, vec!(0x014F06BC, 0x50800000, 0x003F38AB, 0x0000007F));
-        assert_eq!(cheats[2].enable_code, false);          // Enable code flag
-        assert_eq!(cheats[2].name, "Save Anywhere");       // Cheat name
-        //assert_eq!(game.cheats[2].comment, "Press pause to access the menu");
+        assert_eq!(cheats[2].enable_code(), false);             // Enable code flag
+        assert_eq!(cheats[2].name(), "Save Anywhere");          // Cheat name
+        assert_eq!(cheats[2].comment(), Some(String::from("Press pause to access the save menu from anywhere")));  // Comment
         assert_eq!(                                             // Verifier
             cheats[2].codes.split_at(2).0,
             vec!(0x014F06BC, 0x60800000)

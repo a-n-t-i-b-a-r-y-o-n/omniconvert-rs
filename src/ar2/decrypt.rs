@@ -63,8 +63,6 @@ pub fn decrypt_code(input: u32, in_ctrl: u8, seed: u8) -> u32 {
 
     ];
 
-    println!("{:?}", output);
-
     match ctrl {
         0 => {
             output[3] ^= table::T0[seed as usize];

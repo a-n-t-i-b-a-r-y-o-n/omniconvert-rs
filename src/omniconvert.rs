@@ -25,42 +25,20 @@ pub struct CryptOpt {
     pub code:   CodeType,
 }
 
-pub struct State {
-    // Input & output formats
-    pub incrypt:    CryptOpt,
-    outcrypt:   CryptOpt,
-    // Parser options
-    parser:     ParserType,
-    // ARMAX Verifier mode
-    armax_verifier:   armax::VerifierMode,
+pub struct Seeds {
     // ARMAX Seeds
-    pub armax_seeds: [u32; 32],
+    pub armax: [u32; 32],
     // AR2 seeds
-    pub ar2_seeds: [u8; 4],
-    // Game region
-    region:     Region,
+    pub ar2: [u8; 4],
 }
 
-impl State {
+impl Seeds {
     // Initialize the default environment
     pub fn new() -> Self {
         // Return default State object
-        State {
-            // Default to ARMAX input
-            incrypt: CryptOpt {
-                mode: CryptMode::Input,
-                code: FORMATS[8].clone(),
-            },
-            // Default to RAW output
-            outcrypt: CryptOpt {
-                mode: CryptMode::Output,
-                code: FORMATS[0].clone(),
-            },
-            parser: ParserType::Simple,
-            armax_verifier: armax::VerifierMode::Auto,
-            armax_seeds: armax::seeds::generate(),
-            ar2_seeds: ar2::seeds::generate(),
-            region: Region::Unknown,
+        Seeds {
+            armax: armax::seeds::generate(),
+            ar2: ar2::seeds::generate(),
         }
     }
 }
@@ -68,7 +46,7 @@ impl State {
 pub fn read_input(input: &str) -> Vec<UnknownCheat> {
     // RegEx patterns for comments and general octets.
     // Cheats of supported types will have recognize() functions.
-    let PATTERN_COMMENT: Regex    = Regex::new(r#"^\s*(#|//)(.+)"#).unwrap();
+    let PATTERN_COMMENT: Regex    = Regex::new(r#"^\s*(#|//)\s*(.+)"#).unwrap();
     let PATTERN_OCTET: Regex      = Regex::new(r#"^\s*([ABCDEF\d]{8})\s+([ABCDEF\d]{8})\s*"#).unwrap();
 
     // Output cheat list
@@ -86,8 +64,6 @@ pub fn read_input(input: &str) -> Vec<UnknownCheat> {
     for line in input.lines() {
         // Empty lines
         if line.is_empty() {
-            println!("[-] Creating + pushing cheat...");
-
             // Create cheat
             let cheat = UnknownCheat {
                 id: None,
@@ -114,13 +90,14 @@ pub fn read_input(input: &str) -> Vec<UnknownCheat> {
         }
         // Comments
         if PATTERN_COMMENT.is_match(line) {
-            println!("[-] Comment: {}", line);
-
-            if comment.is_empty() {
-                comment = String::from(line);
-            }
-            else {
-                comment = comment + line;
+            // Captures = [0]: Whole line  [1]: Comment signifier  [2]: Comment text
+            if let Some(captures) = PATTERN_COMMENT.captures(line) {
+                if comment.is_empty() {
+                    comment = String::from(captures[2].trim());
+                }
+                else {
+                    comment = comment + " " + captures[2].trim();
+                }
             }
 
             // Continue reading lines
@@ -128,17 +105,13 @@ pub fn read_input(input: &str) -> Vec<UnknownCheat> {
         }
         // Raw octets
         if PATTERN_OCTET.is_match(line) {
-            println!("[-] Octet: {}", line);
-
             if let Some(captures) = PATTERN_OCTET.captures(line) {
-                // Check that we captured 2 groups, plus whole-group capture
+                // Captures = [0]: Whole line  [1]: Address  [2]: Value
                 if captures.len() == 3 {
                     // Parse hex octets
                     if let (Ok(addr), Ok(val)) =
                         (hex::decode(&captures[1]), hex::decode(&captures[2]))
                     {
-                        println!("[+] Parsed octet: {:?} / {:?}", &addr, &val);
-
                         // Add parsed octets, combining u8s to form a u32.
                         // Address octet
                         codes.push(
@@ -161,8 +134,6 @@ pub fn read_input(input: &str) -> Vec<UnknownCheat> {
         }
         // ActionReplay MAX
         if armax::recognize(line) {
-            println!("[-] ARMAX: {}", line);
-
             // Remove the dashes
             let raw_chars = line.replace("-", "");
 
@@ -184,8 +155,6 @@ pub fn read_input(input: &str) -> Vec<UnknownCheat> {
         }
         // Strings
         if read_name {
-            println!("[-] Name: {}", line);
-
             // Set the cheat name if we were expecting to read a name.
             name = String::from(line.trim());
             read_name = false;
