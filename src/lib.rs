@@ -7,6 +7,14 @@ mod magic;
 mod omniconvert;
 mod token;
 
+// Game regions
+pub enum Region {
+    USA,
+    PAL,
+    Japan,
+    Unknown,
+}
+
 #[cfg(test)]
 mod armax_tests {
     use crate::armax;

@@ -1,6 +1,7 @@
 pub mod decrypt;
 pub mod seeds;
 mod table;
+pub mod cheat;
 
 #[derive(Clone, PartialEq)]
 pub enum VerifierMode {
@@ -9,7 +10,8 @@ pub enum VerifierMode {
 }
 
 // Attempt to recognize if this string is an ARMAX code or not
-pub fn is_armax_code(input: &str) -> bool {
+pub fn recognize(input: &str) -> bool {
+    let input = input.trim();
     input.chars().all(|c| { c.is_alphanumeric() || c == '-' }) &&
         input.chars().nth(4) == Some('-') && input.chars().nth(9) == Some('-')
 }

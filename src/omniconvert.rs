@@ -1,9 +1,10 @@
 use crate::formats::{CodeFormat, CodeType, FORMATS};
 use crate::game::{Region};
-use crate::cheat::{Cheat, CheatStates};
+use crate::cheat::{Cheat, CheatState, UnknownCheat};
 use crate::token::{Token, TokenType};
 use crate::armax;
 use crate::ar2;
+use crate::armax::cheat::ARMAXCheat;
 
 // Which mode is represented by a given operation/options
 pub enum CryptMode {
@@ -169,15 +170,15 @@ pub fn read_input(input: &str, format: CodeFormat) -> Vec<Token> {
 }
 
 // Build a vec of Cheat objects from a vec of Token objects
-pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
+pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
     // Output cheat list
-    let mut output: Vec<Cheat> = vec![];
+    let mut output: Vec<impl Cheat> = vec![];
 
     // Flag used to indicate we're reading the cheat name
     let mut reading_name = true;
 
     // Cheat object currently being built
-    let mut cheat = Cheat::new();
+    let mut cheat = UnknownCheat::new();
 
     // String currently being built
     let mut s = String::new();
@@ -227,7 +228,7 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
                 // Add current cheat to output list, then start a new one.
 
                 // Set built string to cheat's comment
-                cheat.comment = String::from(s);
+                cheat.comment = Some(String::from(s));
                 s = String::new();
 
                 // Set cheat as parsed
@@ -235,7 +236,7 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
 
                 output.push(cheat.clone());
 
-                cheat = Cheat::new();
+                cheat = UnknownCheat::new();
 
                 reading_name = true;
             }
@@ -286,7 +287,7 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
                     output.push(cheat.clone());
 
                     // Start a new cheat
-                    cheat = Cheat::new();
+                    cheat = UnknownCheat::new();
                     reading_name = true;
                 }
             }
@@ -297,6 +298,7 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<Cheat> {
         }
         else if token.types.contains(&TokenType::ARMAXCode) {
             // Handle ARMAX code token
+            let mut cheat: ARMAXCheat = cheat.into();
 
             // Remove the dashes
             let raw_chars = token.string.replace("-", "");

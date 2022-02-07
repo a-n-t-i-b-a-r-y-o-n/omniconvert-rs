@@ -1,37 +1,88 @@
-#[derive(Clone)]
-pub struct Cheat {
-    pub game_id:        u32,            //  Parent Game ID
-    pub region:         u8,             //  Game region
-    pub id:             u32,            //  Cheat ID
-    pub name:           String,         //  Cheat name
-    pub comment:        String,         //  Cheat comment(s)
-    pub flags:          [u8; 3],        //  TODO: Remove Cheat flags?
-    pub enable_code:    bool,           //  Whether this code is the 'Master Code'
-    pub codes:          Vec<u32>,       //  Codes composing this cheat
-    pub state:          CheatStates,    //  Decryption/translation state
-}
+use crate::Region;
+use crate::token::Token;
 
 #[derive(Clone, PartialEq)]
-pub enum CheatStates {
-    Unverified,
+pub enum CheatState {
+    New,
     Parsed,
+    Encrypted,
     Decrypted,
     Translated,
 }
 
-impl Cheat {
-    // Original source: cheat.c:cheatInit()
-    pub fn new() -> Self {
-        Self {
-            game_id: 0,
-            region: 0,
-            id: 0,
-            name: "New Cheat".to_string(),
-            comment: "".to_string(),
-            flags: [0u8; 3],
-            enable_code: false,
-            codes: vec![],
-            state: CheatStates::Unverified
+pub trait Cheat {
+    // Initializer
+    fn new() -> Self;
+
+    // Tokenizer
+    fn from_tokens(input: &Vec<Token>) -> Self;
+
+    // State in the encryption/decryption/translation process
+    fn state(&self) -> CheatState;
+
+    // Game region cheat is meant for
+    fn region(&self) -> Region;
+
+    // Cheat ID
+    fn id(&self) -> Option<u32>;
+
+    // Parent Game ID, if applicable
+    fn parent_id(&self) -> Option<u32>;
+
+    // Whether or not this code is required
+    // aka "Master Code", "Enable Code", etc.
+    fn enable_code(&self) -> bool;
+
+    // Cheat name
+    fn name(&self) -> String;
+
+    // Comments, e.g. "Press X+Y+Z to trigger"
+    fn comment(&self) -> Option<String>;
+
+    // Code octets
+    fn codes(&self) -> Option<Vec<u32>>;
+}
+
+// Represents parsed but not-yet-identified cheats
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+pub struct UnknownCheat {
+    pub id:     Option<u32>,
+    pub parent: Option<u32>,
+    pub state:  CheatState,
+    pub name:   String,
+    pub comment: Option<String>,
+    pub region: Region,
+    pub enable: bool,
+    pub codes:  Option<Vec<u32>>
+}
+
+impl Cheat for UnknownCheat {
+    fn new() -> Self {
+        UnknownCheat {
+            id: None,
+            parent: None,
+            state: CheatState::New,
+            name: "".to_string(),
+            comment: Some(String::new()),
+            region: Region::Unknown,
+            enable: false,
+            codes: None
         }
     }
+
+    fn state(&self) -> CheatState { self.state.clone() }
+
+    fn region(&self) -> Region { self.Region }
+
+    fn id(&self) -> Option<u32> { self.id }
+
+    fn parent_id(&self) -> Option<u32> { self.parent }
+
+    fn enable_code(&self) -> bool { self.enable }
+
+    fn name(&self) -> String { self.name.clone() }
+
+    fn comment(&self) -> Option<String> { self.comment.clone() }
+
+    fn codes(&self) -> Option<Vec<u32>> { self.codes.clone() }
 }
