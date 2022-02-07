@@ -1,3 +1,4 @@
+use regex::Regex;
 use crate::formats::{CodeFormat, CodeType, FORMATS};
 use crate::cheat::{Cheat, CheatState, UnknownCheat};
 use crate::token::{Token, TokenType};
@@ -64,269 +65,106 @@ impl State {
     }
 }
 
-// Tokenize input based on a given format
-// Remarks: Most formats are handled similarly, with the exception of ARMAX
-pub fn read_input(input: &str, format: CodeFormat) -> Vec<Token> {
+pub fn read_input(input: &str) -> Vec<UnknownCheat> {
+    // RegEx patterns for comments and general octets.
+    // Cheats of supported types will have recognize() functions.
+    let PATTERN_COMMENT: Regex    = Regex::new(r#"^\s*(#|//)(.+)"#).unwrap();
+    let PATTERN_OCTET: Regex      = Regex::new(r#"^\s*([ABCDEF\d]{8})\s+([ABCDEF\d]{8})\s*"#).unwrap();
 
-    // Output tokens
-    let mut output: Vec<Token> = vec![];
-
-    // Iterate each line
-    println!("[-] Iterating input lines...");
-    for line in input.lines() {
-
-        println!("[?] Line: \"{}\"", line);
-
-        if !line.is_empty() {
-            // Line has some tokens in it.
-
-            // Flag to indicate if we read a code address last iteration and are expecting a value
-            let mut expecting_value = false;
-            // Iterate tokens on this line
-            println!("[-] Iterating tokens...");
-            for (i, t) in line.split_whitespace().enumerate() {
-                // TODO: Fix comment parsing (i.e. actually _do_ it)
-                // Ignore comment lines starting with '#'
-                if i == 0 && t.chars().nth(0) == Some('#') {
-                    break;
-                }
-
-                // Identify token type
-                let mut token_type: TokenType;
-                if !expecting_value {
-                    // Identify as normal, handling ARMAX codes as necessary
-                    token_type = Token::identify_type(t, format == CodeFormat::ARMAX);
-                    // If we just read a code, set it to be an address & set the next iteration to expect a code value
-                    if token_type == TokenType::Code {
-                        token_type = TokenType::CodeAddress;
-                        expecting_value = true;
-                    }
-                }
-                else {
-                    // TODO: Avoid blindly expecting code values
-                    // We're expecting a code address, since we read a code value last iteration
-                    token_type = TokenType::CodeValue;
-                    // Reset the 'expecting' flag
-                    expecting_value = false;
-                }
-
-                // Add Token object to output
-                output.push(Token {
-                    string:     String::from(t),
-                    is_multi:   false,
-                    types:      vec!(token_type),
-                });
-            }
-            // Set the last token to also be an end-of-line token
-            if let Some(last) = output.last_mut() {
-                last.is_multi = true;
-                last.types.push(TokenType::EndOfLine);
-            }
-        }
-        else {
-            // Line is empty.
-
-            // Set the previous token to also be an end-of-block token
-            if let Some(last) = output.last_mut() {
-                last.is_multi = true;
-                last.types.push(TokenType::EndOfBlock);
-            }
-
-            // Add a newline token to use when serializing output
-            output.push(Token {
-                string:     String::from("\n"),
-                is_multi:   true,
-                types:      vec!(TokenType::String, TokenType::NewLine, TokenType::EndOfLine),
-            })
-        }
-
-        // TODO: Go back and set pairs of hex octets to be code address/code values
-    }
-
-    println!("[-] Done iterating input lines.");
-
-    // Clean up input and delineate individual cheats
-    println!("[-] Cleaning up input");
-    for t in output.iter_mut() {
-        // Consider all remaining raw hex octets to actually be strings
-        if t.types.first() == Some(&TokenType::HexOctet) {
-            t.types[0] = TokenType::String;
-        }
-        // TODO: Should we identify 'EndCode' tokens the same way as the original code?
-        // It's currently done as part of reading an empty line.
-
-    }
-
-    // Ensure that the last token is an end-of-block token
-    if let Some(last) = output.last_mut() {
-        if !last.types.contains(&TokenType::EndOfBlock) {
-            last.is_multi = true;
-            last.types.push(TokenType::EndOfBlock);
-        }
-    }
-
-    output
-}
-
-// Build a vec of Cheat objects from a vec of Token objects
-pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<UnknownCheat> {
     // Output cheat list
     let mut output: Vec<UnknownCheat> = vec![];
-
-    // Flag used to indicate we're reading the cheat name
-    let mut reading_name = true;
 
     // Properties of cheat object currently being built
     let mut codes: Vec<u32> = vec![];
     let mut name: String = String::new();
     let mut comment: String = String::new();
 
-    // String currently being built
-    let mut s = String::new();
+    // Whether we are expecting a name
+    let mut read_name: bool = true;
 
-    // Iterate through tokens to build a list of cheats
-    let mut tokens = token_list.iter();
-    loop {
-        // Get the next token or None if we're at the end
-        let next = tokens.next();
-        if next == None {
-            // We've reached the end. Stop looping.
-            break;
+    // Read each input line
+    for line in input.lines() {
+        // Empty lines
+        if line.is_empty() {
+            println!("[-] Creating + pushing cheat...");
+
+            // Create cheat
+            let cheat = UnknownCheat {
+                id: None,
+                parent: None,
+                state: CheatState::Parsed,
+                name: name.clone(),
+                comment: Some(comment.clone()),
+                region: Region::Unknown,
+                enable: false,
+                codes: Some(codes.clone()),
+            };
+
+            // Push working cheat to output
+            output.push(cheat.clone());
+
+            // Reset input
+            name = String::new();
+            comment = String::new();
+            codes = vec![];
+            read_name = true;
+
+            // Continue reading lines
+            continue;
         }
-        // Unwrap our 'next' value to be the current token
-        let token = next.unwrap();
+        // Comments
+        if PATTERN_COMMENT.is_match(line) {
+            println!("[-] Comment: {}", line);
 
-        if token.types.contains(&TokenType::String) {
-            // Handle strings - name or comments
-
-            // TODO: Clean up cheat name/comment reading process (ported pretty directly from C source)
-
-            if !token.types.contains(&TokenType::NewLine) {
-                // Token isn't a newline
-
-                s += &token.string;
-
-                if token.types.contains(&TokenType::EndOfLine) {
-
-                    if !reading_name {
-                        s += "\n";
-                    }
-                    else {
-                        // Expect further strings to be comments
-                        name = String::from(s);
-                        s = String::new();
-
-                        reading_name = false;
-                    }
-                }
-                else {
-                    s += " ";
-                }
+            if comment.is_empty() {
+                comment = String::from(line);
             }
-            else if !reading_name {
-
-                // Found a newline after reading the name, indicating the end of one cheat and start of another.
-                // Add current cheat to output list, then start a new one.
-
-                // Set built string to cheat's comment
-                comment = String::from(s);
-                s = String::new();
-
-                // Create new cheat
-                let mut cheat = UnknownCheat {
-                    id: None,
-                    parent: None,
-                    state: CheatState::Parsed,
-                    name: name.clone(),
-                    comment: Some(comment.clone()),
-                    region: Region::Unknown,
-                    enable: false,
-                    codes: Some(codes.clone()),
-                };
-
-                // Add cheat to output list
-                output.push(cheat);
-
-                // Reset input
-                name = String::new();
-                comment = String::new();
-                codes = vec![];
-                reading_name = true;
+            else {
+                comment = comment + line;
             }
+
+            // Continue reading lines
+            continue;
         }
-        else if token.types.contains(&TokenType::CodeAddress) {
-            // Handle code address token
+        // Raw octets
+        if PATTERN_OCTET.is_match(line) {
+            println!("[-] Octet: {}", line);
 
-            // If current token is address, next token must be value.
-            // Take next token as value for current address token.
-            if let Some(next_token) = tokens.next() {
-                // Attempt to parse the address/value octets
-                if let (Ok(address), Ok(value)) =
-                (hex::decode(&token.string), hex::decode(&next_token.string))
-                {
-                    // Double-check our length
-                    if address.len() < 4 || value.len() < 4 {
-                        // TODO: Handle parsing errors gracefully
-                        println!("[!] Received address/value of lengths {}/{}", address.len(), value.len());
-                    }
-                    else {
+            if let Some(captures) = PATTERN_OCTET.captures(line) {
+                // Check that we captured 2 groups, plus whole-group capture
+                if captures.len() == 3 {
+                    // Parse hex octets
+                    if let (Ok(addr), Ok(val)) =
+                        (hex::decode(&captures[1]), hex::decode(&captures[2]))
+                    {
+                        println!("[+] Parsed octet: {:?} / {:?}", &addr, &val);
+
                         // Add parsed octets, combining u8s to form a u32.
                         // Address octet
                         codes.push(
-                            ((address[0] as u32) << 3) +
-                            ((address[1] as u32) << 2) +
-                            ((address[2] as u32) << 1) +
-                            (address[3] as u32));
+                            ((addr[0] as u32) << 3) +
+                                ((addr[1] as u32) << 2) +
+                                ((addr[2] as u32) << 1) +
+                                (addr[3] as u32));
                         // Value octet
                         codes.push(
-                            ((value[0] as u32) << 3) +
-                            ((value[1] as u32) << 2) +
-                            ((value[2] as u32) << 1) +
-                            (value[3] as u32));
+                            ((val[0] as u32) << 3) +
+                                ((val[1] as u32) << 2) +
+                                ((val[2] as u32) << 1) +
+                                (val[3] as u32));
+
+                        // Continue reading lines
+                        continue;
                     }
                 }
-                else {
-                    // TODO: Handle parsing errors gracefully
-                    //println!("[!] Unable to parse address/value pair: ({}/{})", &token.string, &value.string);
-                }
-
-                // If we hit the end of a text/token block, start a new cheat.
-                if next_token.types.contains(&TokenType::EndOfBlock) {
-
-                    // Create new cheat
-                    let mut cheat = UnknownCheat {
-                        id: None,
-                        parent: None,
-                        state: CheatState::Parsed,
-                        name: name.clone(),
-                        comment: Some(comment.clone()),
-                        region: Region::Unknown,
-                        enable: false,
-                        codes: Some(codes.clone()),
-                    };
-
-                    // Add cheat to output list
-                    output.push(cheat);
-
-                    // Reset input
-                    name = String::new();
-                    comment = String::new();
-                    codes = vec![];
-                    reading_name = true;
-                }
-            }
-            else {
-                // TODO: Handle parsing errors gracefully
-                println!("[!] Expected value for final address token: {:?}", token);
             }
         }
-        else if token.types.contains(&TokenType::ARMAXCode) {
-            // Handle ARMAX code token
-
-            // TODO: Indicate that this is an ARMAXCheat
+        // ActionReplay MAX
+        if armax::recognize(line) {
+            println!("[-] ARMAX: {}", line);
 
             // Remove the dashes
-            let raw_chars = token.string.replace("-", "");
+            let raw_chars = line.replace("-", "");
 
             // Attempt to decode the ARMAX string to an address/value pair of octets
             if let Some(octets) = armax::decrypt::alpha_to_octets(vec!(&raw_chars)) {
@@ -335,108 +173,49 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<UnknownCheat> {
                     codes.push(octet.0);
                     codes.push(octet.1);
                 }
+
+                // Continues reading lines
+                continue;
             }
             else {
                 // TODO: Handle parsing errors gracefully
-                println!("[!] Unable to parse ARMAX code to octets: {:?}", &token.string);
+                println!("[!] Unable to parse ARMAX code to octets: {:?}", line);
             }
+        }
+        // Strings
+        if read_name {
+            println!("[-] Name: {}", line);
 
-            // If we hit the end of a text/token block, start a new cheat.
-            if token.types.contains(&TokenType::EndOfBlock) {
+            // Set the cheat name if we were expecting to read a name.
+            name = String::from(line.trim());
+            read_name = false;
 
-                // Create new cheat
-                let mut cheat = UnknownCheat {
-                    id: None,
-                    parent: None,
-                    state: CheatState::Parsed,
-                    name: name.clone(),
-                    comment: Some(comment.clone()),
-                    region: Region::Unknown,
-                    enable: false,
-                    codes: Some(codes.clone()),
-                };
-
-                // Add cheat to output list
-                output.push(cheat);
-
-                // Reset input
-                name = String::new();
-                comment = String::new();
-                codes = vec![];
-                reading_name = true;
-            }
+            // Continue reading lines
+            continue;
         }
         else {
-            // Unhandled token
-            println!("[!] Unhandled token of type(s) {:?} - {:?}", token.types, token);
+            // Unexpected string. Discard.
+            println!("[-] Unexpected line in input: {}", line);
         }
+    }
+    if !codes.is_empty() {
+        // No newline at end of file. Create & push last cheat.
 
+        // Create cheat
+        let cheat = UnknownCheat {
+            id: None,
+            parent: None,
+            state: CheatState::Parsed,
+            name: name.clone(),
+            comment: Some(comment.clone()),
+            region: Region::Unknown,
+            enable: false,
+            codes: Some(codes.clone()),
+        };
+
+        // Push working cheat to output
+        output.push(cheat.clone());
     }
 
     output
 }
-
-/*
-// TODO: The following is left for historical reasons, since its structure closely matches the original
-//       Please refer to the library armax_tests for an updated decryption example, minus several to-do items.
-fn decrypt_and_translate(state: &State, game: &mut Game) -> Game {
-    // Clone output to return
-    let mut output: Game = game.clone();
-    // TODO: Make an ARMAX disc hash if we're using ARMAX output w/ auto verifier
-    if state.outcrypt.code.device == CodeDevice::ARMAX && state.armax_verifier == armax::VerifierMode::Auto {
-        panic!("[!] ARMAX disc hashes not implemented yet");
-    }
-
-    // TODO: Reset CB devices for input mode
-
-    match state.incrypt.code.format {
-        CodeFormat::AR1 => {}
-        CodeFormat::AR2 => {}
-        CodeFormat::ARMAX => {
-            output = armax::decrypt::decrypt_game(output, &state.armax_seeds);
-        }
-        CodeFormat::CB => {}
-        CodeFormat::CB7 => {}
-        CodeFormat::GS3 => {}
-        CodeFormat::GS5 => {}
-        CodeFormat::MAXRAW => {}
-        CodeFormat::RAW => {}
-    }
-
-    // TODO: Reset CB devices for output mode
-
-    output
-}
-
-// Minimum requirements to perform code conversion
-pub fn minimal_conversion() {
-
-    // DEBUG: Test input - the "Master Code" for Kingdom Hearts
-    let test_input = "UQRN-ER36-M3RD5\nWC60-T93N-MGJBW\n7QTG-QEQB-YXP60\nVFE7-FK9B-M32EA\nKQEK-5ZFB-F8UP9";
-
-    // Set up default environment
-    println!("--> Begin conversion...");
-    let mut state: State = State::new();
-
-    // TODO: Build GS3 seeds
-
-    // Initialize game object
-    println!("[-] Initializing game object");
-    let mut game: Game = Game::new();
-
-    // TODO: Get input from user
-
-    // Read test input
-    println!("[-] Reading input");
-    let tokens = read_input(test_input, state.incrypt.code.format);
-
-    // Parse tokens into cheats
-    println!("[-] Building cheat list");
-    game.cheats = build_cheat_list(tokens);
-
-    // TODO: Get Game ID from first cheat
-
-    // Decrypt and translate cheats
-    decrypt_and_translate(&state, &mut game);
-}
- */

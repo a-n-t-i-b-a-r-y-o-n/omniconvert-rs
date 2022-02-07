@@ -39,6 +39,8 @@ impl ARMAXCheat {
         // Output codes
         let mut out_codes: Vec<u32> = vec!();
 
+        // TODO: Make an ARMAX disc hash if we're using ARMAX output w/ auto verifier
+
         // Iterate through addr/val pairs
         for i in (0..self.codes.len()).step_by(2) {
             // Decrypt each pair and add to output

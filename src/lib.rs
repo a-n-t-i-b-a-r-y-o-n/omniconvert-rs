@@ -83,11 +83,8 @@ Save Anywhere
         // Dummy game object
         let mut game: Game = Game::new();
 
-        // Tokenize input
-        let tokens = omniconvert::read_input(TEST_CHEAT_SINGLE, state.incrypt.code.format);
-
-        // Parse input into cheats
-        game.cheats = omniconvert::build_cheat_list(tokens);
+        // Read input cheats
+        game.cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
         assert!(game.cheats.len() > 0);
 
@@ -119,11 +116,8 @@ Save Anywhere
         // Dummy game object
         let mut game: Game = Game::new();
 
-        // Tokenize input
-        let tokens = omniconvert::read_input(TEST_CHEAT_SINGLE, state.incrypt.code.format);
-
-        // Parse input into cheats
-        game.cheats = omniconvert::build_cheat_list(tokens);
+        // Read input cheats
+        game.cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
         assert!(game.cheats.len() > 0);
 
@@ -170,11 +164,8 @@ Save Anywhere
         // Dummy game object
         let mut game: Game = Game::new();
 
-        // Tokenize input
-        let tokens = omniconvert::read_input(TEST_CHEAT_SINGLE, state.incrypt.code.format);
-
-        // Parse input into cheats
-        game.cheats = omniconvert::build_cheat_list(tokens);
+        // Read input cheats
+        game.cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
         assert!(game.cheats.len() > 0);
 
@@ -227,11 +218,8 @@ Save Anywhere
         // Dummy game object
         let mut game: Game = Game::new();
 
-        // Tokenize input
-        let tokens = omniconvert::read_input(TEST_CHEAT_SINGLE, state.incrypt.code.format);
-
-        // Parse input into cheats
-        game.cheats = omniconvert::build_cheat_list(tokens);
+        // Read input cheats
+        game.cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
         assert!(game.cheats.len() > 0);
 
@@ -260,11 +248,8 @@ Save Anywhere
         // Default state
         let state: omniconvert::State = omniconvert::State::new();
 
-        // Tokenize input
-        let tokens = omniconvert::read_input(TEST_CHEAT_SINGLE, state.incrypt.code.format);
-
-        // Parse input into cheats
-        let encrypted_cheats: Vec<UnknownCheat> = omniconvert::build_cheat_list(tokens);
+        // Read input cheats
+        let encrypted_cheats = omniconvert::read_input(TEST_CHEAT_SINGLE);
 
         // Decrypt
         let decrypted_cheats: Vec<ARMAXCheat> = encrypted_cheats
@@ -305,11 +290,8 @@ Save Anywhere
             region: Region::Unknown
         };
 
-        // Tokenize input
-        let tokens = omniconvert::read_input(TEST_CHEAT_MULTIPLE, state.incrypt.code.format);
-
         // Build list of encrypted cheats, then decrypt and add to game
-        let mut cheats: Vec<ARMAXCheat> = omniconvert::build_cheat_list(tokens)
+        let mut cheats: Vec<ARMAXCheat> = omniconvert::read_input(TEST_CHEAT_MULTIPLE)
             .into_iter()
             .map(|cheat: UnknownCheat| {
                 let mut cheat: ARMAXCheat = cheat.into();
