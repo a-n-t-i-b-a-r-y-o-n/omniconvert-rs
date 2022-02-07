@@ -245,7 +245,7 @@ pub fn unscramble_2(mut addr: u32, mut val: u32) -> (u32, u32) {
 
 // Original source: armax.c:armReadVerifier()
 // Read verifier bit string from a decrypted cheat and return the number of code lines it occupies
-fn read_verifier_length(input: &Vec<u32>) -> i16 {
+pub fn read_verifier_length(input: &Vec<u32>) -> i16 {
     // TODO: [oddity] Is lines=1 an off-by-one in the original code? It's definitely required.
     // Output line count
     let mut lines: i16 = 1;

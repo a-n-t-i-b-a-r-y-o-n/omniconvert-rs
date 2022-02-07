@@ -1,7 +1,7 @@
 use crate::Region;
 use crate::token::Token;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum CheatState {
     New,
     Parsed,
@@ -44,7 +44,7 @@ pub trait Cheat {
 }
 
 // Represents parsed but not-yet-identified cheats
-#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct UnknownCheat {
     pub id:     Option<u32>,
     pub parent: Option<u32>,
@@ -70,9 +70,13 @@ impl Cheat for UnknownCheat {
         }
     }
 
+    fn from_tokens(input: &Vec<Token>) -> Self {
+        todo!()
+    }
+
     fn state(&self) -> CheatState { self.state.clone() }
 
-    fn region(&self) -> Region { self.Region }
+    fn region(&self) -> Region { self.region.clone() }
 
     fn id(&self) -> Option<u32> { self.id }
 

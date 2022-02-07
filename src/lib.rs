@@ -8,6 +8,7 @@ mod omniconvert;
 mod token;
 
 // Game regions
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub enum Region {
     USA,
     PAL,
@@ -17,9 +18,10 @@ pub enum Region {
 
 #[cfg(test)]
 mod armax_tests {
-    use crate::armax;
-    use crate::cheat::Cheat;
-    use crate::game::{Game, Region};
+    use crate::{armax, Region};
+    use crate::armax::cheat::ARMAXCheat;
+    use crate::cheat::{Cheat, UnknownCheat};
+    use crate::game::{Game};
     use crate::omniconvert;
 
     // "Enable Code" for Kingdom Hearts (USA)
@@ -64,7 +66,7 @@ Save Anywhere
 
     #[test]
     fn armax_recognize_single() {
-        assert_eq!(true, armax::is_armax_code("UQRN-ER36-M3RD5"))
+        assert_eq!(true, armax::recognize("UQRN-ER36-M3RD5"))
     }
 
     #[test]
@@ -90,11 +92,11 @@ Save Anywhere
         assert!(game.cheats.len() > 0);
 
         // Get first code of first cheat
-        let mut codes = game.cheats[0].codes.iter();
+        let mut codes = game.cheats[0].codes().unwrap().into_iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
             // Swap bytes
-            let addr = armax::swap_bytes(*in_addr);
-            let val = armax::swap_bytes(*in_val);
+            let addr = armax::swap_bytes(in_addr);
+            let val = armax::swap_bytes(in_val);
             // Unscramble step 1
             let unscrambled = armax::decrypt::unscramble_1(addr, val);
 
@@ -126,11 +128,11 @@ Save Anywhere
         assert!(game.cheats.len() > 0);
 
         // Get first code of first cheat
-        let mut codes = game.cheats[0].codes.iter();
+        let mut codes = game.cheats[0].codes().unwrap().into_iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
             // Swap bytes
-            let mut addr = armax::swap_bytes(*in_addr);
-            let mut val = armax::swap_bytes(*in_val);
+            let mut addr = armax::swap_bytes(in_addr);
+            let mut val = armax::swap_bytes(in_val);
             // Unscramble step 1
             let unscrambled = armax::decrypt::unscramble_1(addr, val);
             addr = unscrambled.0;
@@ -177,11 +179,11 @@ Save Anywhere
         assert!(game.cheats.len() > 0);
 
         // Get first code of first cheat
-        let mut codes = game.cheats[0].codes.iter();
+        let mut codes = game.cheats[0].codes().unwrap().into_iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
             // Swap bytes
-            let mut addr = armax::swap_bytes(*in_addr);
-            let mut val = armax::swap_bytes(*in_val);
+            let mut addr = armax::swap_bytes(in_addr);
+            let mut val = armax::swap_bytes(in_val);
             // Unscramble step 1
             let unscrambled = armax::decrypt::unscramble_1(addr, val);
             addr = unscrambled.0;
@@ -234,9 +236,9 @@ Save Anywhere
         assert!(game.cheats.len() > 0);
 
         // Decrypt
-        let mut codes = game.cheats[0].codes.iter();
+        let mut codes = game.cheats[0].codes().unwrap().into_iter();
         if let (Some(in_addr), Some(in_val)) = (codes.next(), codes.next()) {
-            let (out_addr, out_val) = armax::decrypt::decrypt_pair((*in_addr, *in_val), seeds);
+            let (out_addr, out_val) = armax::decrypt::decrypt_pair((in_addr, in_val), seeds);
 
             assert_eq!(out_addr, 2169439932);
             assert_eq!(out_val, 678980011);
@@ -247,7 +249,7 @@ Save Anywhere
         }
 
         assert!(game.cheats.len() > 0);
-        assert!(game.cheats[0].codes.len() > 0);
+        assert!(game.cheats[0].codes().unwrap().len() > 0);
 
 
     }
@@ -262,13 +264,15 @@ Save Anywhere
         let tokens = omniconvert::read_input(TEST_CHEAT_SINGLE, state.incrypt.code.format);
 
         // Parse input into cheats
-        let encrypted_cheats: Vec<Cheat> = omniconvert::build_cheat_list(tokens);
+        let encrypted_cheats: Vec<UnknownCheat> = omniconvert::build_cheat_list(tokens);
 
         // Decrypt
-        let decrypted_cheats: Vec<Cheat> = encrypted_cheats
+        let decrypted_cheats: Vec<ARMAXCheat> = encrypted_cheats
             .into_iter()
             .map(|cheat| {
-                armax::decrypt::decrypt_cheat(cheat, &state.armax_seeds, &state.ar2_seeds)
+                let mut armax: ARMAXCheat = cheat.into();
+                armax.decrypt(&state.armax_seeds, &state.ar2_seeds);
+                armax
             })
             .collect();
 
@@ -277,7 +281,7 @@ Save Anywhere
         assert_eq!(decrypted_cheats[0].codes.len(), 10);
 
         // Cheat metadata
-        assert_eq!(decrypted_cheats[0].enable_code, true);
+        assert_eq!(decrypted_cheats[0].enable_code(), true);
         assert_eq!(decrypted_cheats[0].game_id, 0x029E);
 
         // Verifier lines
@@ -305,50 +309,47 @@ Save Anywhere
         let tokens = omniconvert::read_input(TEST_CHEAT_MULTIPLE, state.incrypt.code.format);
 
         // Build list of encrypted cheats, then decrypt and add to game
-        game.cheats = omniconvert::build_cheat_list(tokens)
+        let mut cheats: Vec<ARMAXCheat> = omniconvert::build_cheat_list(tokens)
             .into_iter()
-            .map(|cheat| {
-                armax::decrypt::decrypt_cheat(cheat, &state.armax_seeds, &state.ar2_seeds)
+            .map(|cheat: UnknownCheat| {
+                let mut cheat: ARMAXCheat = cheat.into();
+                cheat.decrypt(&state.armax_seeds, &state.ar2_seeds);
+                cheat
             })
             .collect();
 
         // Pull Game metadata from first cheat
-        game.id = game.cheats[0].game_id;
-        game.region = match game.cheats[0].region {
-            0 => Region::USA,
-            1 => Region::PAL,
-            2 => Region::Japan,
-            _ => Region::Unknown
-        };
+        game.id = cheats[0].game_id;
+        game.region = cheats[0].region();
 
         // Game
         assert_eq!(game.id, 0x029E);
         assert_eq!(game.region, Region::USA);
-        assert_eq!(game.cheats.len(), 3);
+        assert_eq!(cheats.len(), 3);
 
         // Cheat codes
-        assert_eq!(game.cheats[0].enable_code, true);           // Enable code flag
-        assert_eq!(game.cheats[0].name, "Enable Code");         // Cheat name
+        assert_eq!(cheats[0].enable_code, true);           // Enable code flag
+        assert_eq!(cheats[0].name, "Enable Code");         // Cheat name
         assert_eq!(                                             // Verifier
-            game.cheats[0].codes.split_at(4).0,
+            cheats[0].codes.split_at(4).0,
             vec!(0x014F06BC, 0x287869AB, 0x74680000, 0x00000000)
         );
-        assert_eq!(game.cheats[0].codes, vec!(0x014F06BC, 0x287869AB, 0x74680000, 0x00000000, 0xC411F668, 0x00000800, 0x0C0F0094, 0x00000001, 0xC4000000, 0x00010801));
-        assert_eq!(game.cheats[1].enable_code, false);          // Enable code flag
-        assert_eq!(game.cheats[1].name, "Have All Trinities");  // Cheat name
+        assert_eq!(cheats[0].codes, vec!(0x014F06BC, 0x287869AB, 0x74680000, 0x00000000, 0xC411F668, 0x00000800, 0x0C0F0094, 0x00000001, 0xC4000000, 0x00010801));
+        assert_eq!(cheats[1].enable_code, false);          // Enable code flag
+        assert_eq!(cheats[1].name, "Have All Trinities");  // Cheat name
         assert_eq!(                                             // Verifier
-            game.cheats[1].codes.split_at(2).0,
+            cheats[1].codes.split_at(2).0,
             vec!(0x014F06BC, 0x50800000)
         );
-        assert_eq!(game.cheats[1].codes, vec!(0x014F06BC, 0x50800000, 0x003F38AB, 0x0000007F));
-        assert_eq!(game.cheats[2].enable_code, false);          // Enable code flag
-        assert_eq!(game.cheats[2].name, "Save Anywhere");       // Cheat name
+        assert_eq!(cheats[1].codes, vec!(0x014F06BC, 0x50800000, 0x003F38AB, 0x0000007F));
+        assert_eq!(cheats[2].enable_code, false);          // Enable code flag
+        assert_eq!(cheats[2].name, "Save Anywhere");       // Cheat name
         //assert_eq!(game.cheats[2].comment, "Press pause to access the menu");
         assert_eq!(                                             // Verifier
-            game.cheats[2].codes.split_at(2).0,
+            cheats[2].codes.split_at(2).0,
             vec!(0x014F06BC, 0x60800000)
         );
-        assert_eq!(game.cheats[2].codes, vec!(0x014F06BC, 0x60800000, 0x044865E0, 0x00114288));
+        assert_eq!(cheats[2].codes, vec!(0x014F06BC, 0x60800000, 0x044865E0, 0x00114288));
 
     }
 }

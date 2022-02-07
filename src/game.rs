@@ -1,19 +1,11 @@
-use crate::cheat::Cheat;
-
-// Game regions
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub enum Region {
-    USA,
-    PAL,
-    Japan,
-    Unknown,
-}
+use crate::cheat::{Cheat, UnknownCheat};
+use crate::Region;
 
 #[derive(Clone)]
 pub struct Game {
     pub id:     u32,
     pub name:   String,
-    pub cheats: Vec<Cheat>,
+    pub cheats: Vec<UnknownCheat>,
     pub region: Region,
 }
 

@@ -1,3 +1,5 @@
+use regex::{Regex};
+
 pub mod decrypt;
 pub mod seeds;
 mod table;
@@ -9,11 +11,13 @@ pub enum VerifierMode {
     Auto,
 }
 
+const ARMAX_FORMAT: &str = r#"[\w\d]{4}-[\w\d]{4}-[\w\d]{5}"#;
+
 // Attempt to recognize if this string is an ARMAX code or not
 pub fn recognize(input: &str) -> bool {
-    let input = input.trim();
-    input.chars().all(|c| { c.is_alphanumeric() || c == '-' }) &&
-        input.chars().nth(4) == Some('-') && input.chars().nth(9) == Some('-')
+    Regex::new(ARMAX_FORMAT)
+        .unwrap()
+        .is_match(input.trim())
 }
 
 // TODO: De-duplicate common operations

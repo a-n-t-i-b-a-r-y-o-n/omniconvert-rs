@@ -1,8 +1,7 @@
 use crate::formats::{CodeFormat, CodeType, FORMATS};
-use crate::game::{Region};
 use crate::cheat::{Cheat, CheatState, UnknownCheat};
 use crate::token::{Token, TokenType};
-use crate::armax;
+use crate::{armax, Region};
 use crate::ar2;
 use crate::armax::cheat::ARMAXCheat;
 
@@ -170,15 +169,17 @@ pub fn read_input(input: &str, format: CodeFormat) -> Vec<Token> {
 }
 
 // Build a vec of Cheat objects from a vec of Token objects
-pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
+pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<UnknownCheat> {
     // Output cheat list
-    let mut output: Vec<impl Cheat> = vec![];
+    let mut output: Vec<UnknownCheat> = vec![];
 
     // Flag used to indicate we're reading the cheat name
     let mut reading_name = true;
 
-    // Cheat object currently being built
-    let mut cheat = UnknownCheat::new();
+    // Properties of cheat object currently being built
+    let mut codes: Vec<u32> = vec![];
+    let mut name: String = String::new();
+    let mut comment: String = String::new();
 
     // String currently being built
     let mut s = String::new();
@@ -212,7 +213,7 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
                     }
                     else {
                         // Expect further strings to be comments
-                        cheat.name = String::from(s);
+                        name = String::from(s);
                         s = String::new();
 
                         reading_name = false;
@@ -228,16 +229,28 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
                 // Add current cheat to output list, then start a new one.
 
                 // Set built string to cheat's comment
-                cheat.comment = Some(String::from(s));
+                comment = String::from(s);
                 s = String::new();
 
-                // Set cheat as parsed
-                cheat.state = CheatStates::Parsed;
+                // Create new cheat
+                let mut cheat = UnknownCheat {
+                    id: None,
+                    parent: None,
+                    state: CheatState::Parsed,
+                    name: name.clone(),
+                    comment: Some(comment.clone()),
+                    region: Region::Unknown,
+                    enable: false,
+                    codes: Some(codes.clone()),
+                };
 
-                output.push(cheat.clone());
+                // Add cheat to output list
+                output.push(cheat);
 
-                cheat = UnknownCheat::new();
-
+                // Reset input
+                name = String::new();
+                comment = String::new();
+                codes = vec![];
                 reading_name = true;
             }
         }
@@ -259,13 +272,13 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
                     else {
                         // Add parsed octets, combining u8s to form a u32.
                         // Address octet
-                        cheat.codes.push(
+                        codes.push(
                             ((address[0] as u32) << 3) +
                             ((address[1] as u32) << 2) +
                             ((address[2] as u32) << 1) +
                             (address[3] as u32));
                         // Value octet
-                        cheat.codes.push(
+                        codes.push(
                             ((value[0] as u32) << 3) +
                             ((value[1] as u32) << 2) +
                             ((value[2] as u32) << 1) +
@@ -280,14 +293,25 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
                 // If we hit the end of a text/token block, start a new cheat.
                 if next_token.types.contains(&TokenType::EndOfBlock) {
 
-                    // Set cheat as parsed
-                    cheat.state = CheatStates::Parsed;
+                    // Create new cheat
+                    let mut cheat = UnknownCheat {
+                        id: None,
+                        parent: None,
+                        state: CheatState::Parsed,
+                        name: name.clone(),
+                        comment: Some(comment.clone()),
+                        region: Region::Unknown,
+                        enable: false,
+                        codes: Some(codes.clone()),
+                    };
 
-                    // Add to output list
-                    output.push(cheat.clone());
+                    // Add cheat to output list
+                    output.push(cheat);
 
-                    // Start a new cheat
-                    cheat = UnknownCheat::new();
+                    // Reset input
+                    name = String::new();
+                    comment = String::new();
+                    codes = vec![];
                     reading_name = true;
                 }
             }
@@ -298,7 +322,8 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
         }
         else if token.types.contains(&TokenType::ARMAXCode) {
             // Handle ARMAX code token
-            let mut cheat: ARMAXCheat = cheat.into();
+
+            // TODO: Indicate that this is an ARMAXCheat
 
             // Remove the dashes
             let raw_chars = token.string.replace("-", "");
@@ -307,8 +332,8 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
             if let Some(octets) = armax::decrypt::alpha_to_octets(vec!(&raw_chars)) {
                 // Add the octets to our code list
                 for octet in octets {
-                    cheat.codes.push(octet.0);
-                    cheat.codes.push(octet.1);
+                    codes.push(octet.0);
+                    codes.push(octet.1);
                 }
             }
             else {
@@ -318,14 +343,26 @@ pub fn build_cheat_list(token_list: Vec<Token>) -> Vec<impl Cheat> {
 
             // If we hit the end of a text/token block, start a new cheat.
             if token.types.contains(&TokenType::EndOfBlock) {
-                // Set cheat as parsed
-                cheat.state = CheatStates::Parsed;
 
-                // Add to output list
-                output.push(cheat.clone());
+                // Create new cheat
+                let mut cheat = UnknownCheat {
+                    id: None,
+                    parent: None,
+                    state: CheatState::Parsed,
+                    name: name.clone(),
+                    comment: Some(comment.clone()),
+                    region: Region::Unknown,
+                    enable: false,
+                    codes: Some(codes.clone()),
+                };
 
-                // Start a new cheat
-                cheat = Cheat::new();
+                // Add cheat to output list
+                output.push(cheat);
+
+                // Reset input
+                name = String::new();
+                comment = String::new();
+                codes = vec![];
                 reading_name = true;
             }
         }

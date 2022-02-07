@@ -1,5 +1,6 @@
 use crate::cheat::{Cheat, CheatState, UnknownCheat};
 use crate::{ar2, armax, Region};
+use crate::token::Token;
 
 pub struct ARMAXCheat {
     pub game_id:        u32,            //  Parent Game ID
@@ -39,10 +40,10 @@ impl ARMAXCheat {
         let mut out_codes: Vec<u32> = vec!();
 
         // Iterate through addr/val pairs
-        for i in (0..input.codes.len()).step_by(2) {
+        for i in (0..self.codes.len()).step_by(2) {
             // Decrypt each pair and add to output
             let (addr, val) =
-                armax::decrypt::decrypt_pair((input.codes[i], input.codes[i+1]), armax_seeds);
+                armax::decrypt::decrypt_pair((self.codes[i], self.codes[i+1]), armax_seeds);
             out_codes.push(addr);
             out_codes.push(val);
         }
@@ -50,16 +51,13 @@ impl ARMAXCheat {
 
         if out_codes.len() > 0 {
 
-            // Read cheat metadata from decrypted codes
-            self.read_cheat_meta();
-
             // TODO: [ARMAXCheat::decrypt] Verify decrypted codes with CRC16
 
             // Apply mask to 1st code
             out_codes[0] &= 0x0FFFFFFF;
 
             // Determine ARMAX verifier code count (given two u32 code octets per line)
-            let verifier_code_count = (read_verifier_length(&out_codes) as usize) * 2;
+            let verifier_code_count = (armax::decrypt::read_verifier_length(&out_codes) as usize) * 2;
 
             // Determine non-ARMAX-verifier (i.e. AR2) code count
             let ar2_code_count = out_codes.len() - verifier_code_count;
@@ -88,9 +86,12 @@ impl ARMAXCheat {
             // Update our codes to the decrypted ones
             self.codes = out_codes;
 
-            true
+            // Read cheat metadata from decrypted codes
+            self.read_cheat_meta();
+
+            return true;
         }
-        false
+        return false;
     }
 
     // Read metadata from decrypted codes and update provided input Cheat
@@ -99,7 +100,7 @@ impl ARMAXCheat {
         let mut key: [u32; 3] = [
             0u32,
             4u32,   // Skip reading CRC bytes
-            codes.len() as u32,
+            self.codes.len() as u32,
         ];
 
         // WARNING: READING PERMUTES THE KEY ARRAY - ORDER MATTERS!
@@ -126,6 +127,10 @@ impl Cheat for ARMAXCheat {
         }
     }
 
+    fn from_tokens(input: &Vec<Token>) -> Self {
+        todo!()
+    }
+
     fn state(&self) -> CheatState {
         // TODO: [ARMAXCheat] Fix unnecessary cloning by using lifetimes
         self.state.clone()
@@ -150,14 +155,14 @@ impl Cheat for ARMAXCheat {
 
     fn comment(&self) -> Option<String> {
         if self.comment.is_empty() {
-            None
+            return None
         }
         Some(String::from(&self.comment))
     }
 
     fn codes(&self) -> Option<Vec<u32>> {
         if self.codes.len() == 0 {
-            None
+            return None
         }
         // TODO: [ARMAXCheat] Fix unnecessary cloning by using lifetimes
         Some(self.codes.clone())

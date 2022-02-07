@@ -1,4 +1,4 @@
-use crate::armax::is_armax_code;
+use crate::armax;
 
 // Types of tokens we may encounter
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -62,7 +62,7 @@ impl Token {
                 }
                 else {
                     // If it looks like an ARMAX code, consider it one. Otherwise, a string.
-                    if is_armax_code(input) {
+                    if armax::recognize(input) {
                         TokenType::ARMAXCode
                     }
                     else {
